@@ -27,6 +27,34 @@ body {
   flex-direction: column;
   height: 100vh;
   background-color: var(--primary-bg);
+  position: relative;
+}
+
+/* Mode Switch Popup */
+.mode-popup {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--accent-color);
+  color: #000;
+  padding: 15px 30px;
+  border-radius: 8px;
+  font-weight: bold;
+  z-index: 2000;
+  animation: slideDown 0.3s ease-out;
+  box-shadow: 0 4px 12px rgba(0, 255, 255, 0.4);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
 /* Header Styles */
@@ -44,6 +72,7 @@ body {
   font-size: 32px;
   font-weight: 700;
   color: var(--accent-color);
+  cursor: pointer;
 }
 
 .header-title {
@@ -51,6 +80,67 @@ body {
   text-align: center;
   font-size: 18px;
   font-family: 'Roboto', sans-serif;
+}
+
+/* Mode Toggle Styles */
+.mode-toggle-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: var(--spacing-lg);
+}
+
+.mode-label {
+  color: var(--accent-color);
+  font-weight: 500;
+  font-size: 14px;
+  min-width: 100px;
+  text-align: right;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 60px;
+  height: 30px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #555;
+  transition: 0.3s;
+  border-radius: 30px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: var(--accent-color);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(30px);
 }
 
 /* Profile and dropdown menu styles */
@@ -223,6 +313,20 @@ body {
   resize: vertical;
 }
 
+/* Disabled Input Styles */
+.disabled-input {
+  cursor: not-allowed !important;
+  background-color: #0d0d0d !important;
+  border: 2px solid #ff0000 !important;
+  color: #666 !important;
+  opacity: 0.6;
+}
+
+.disabled-input::placeholder {
+  color: #ff0000 !important;
+  font-weight: bold;
+}
+
 .character-count {
   text-align: right;
   margin-top: 4px;
@@ -246,6 +350,7 @@ body {
   cursor: pointer;
   font-family: 'Roboto', sans-serif;
   transition: background-color 0.3s;
+  font-size: 16px;
 }
 
 .submit-button:hover {

@@ -7,23 +7,47 @@ const LogSubmitForm = () => {
     owner: '',
     content: '',
     tokenAddress: '',
-    reward: ''
+    reward: '',
+    totalValidators: ''
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [contentLength, setContentLength] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
-  const navigate = useNavigate(); 
+  const [isEnterpriseMode, setIsEnterpriseMode] = useState(false);
+  const [showModePopup, setShowModePopup] = useState(false);
+  const navigate = useNavigate();
+
+  // Default DTNC token for single user mode
+  const DTNC_TOKEN = "DTNC";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     
     if (name === 'reward' && value !== '') {
+      // Allow numbers only, no limit on size
+      if (!/^\d+$/.test(value)) return;
+      // Optional: Prevent going over u64 max (18 quintillion)
+      const numValue = BigInt(value);
+      const MAX_U64 = BigInt("18446744073709551615");
+      if (numValue > MAX_U64) {
+        alert("Reward exceeds maximum value (18 quintillion)");
+        return;
+      }
+    }
+
+    if (name === 'totalValidators' && value !== '') {
       if (!/^\d+$/.test(value)) return;
     }
     
     if (name === 'content') {
-      if (value.length > 600) return;
-      setContentLength(value.length);
+      // MASSIVE increase: Allow up to 100,000 characters (~20,000 words)
+      const trimmedValue = value.substring(0, 100000);
+      setContentLength(trimmedValue.length);
+      setFormData({
+        ...formData,
+        [name]: trimmedValue
+      });
+      return;
     }
 
     setFormData({
@@ -32,26 +56,94 @@ const LogSubmitForm = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleModeToggle = () => {
+    const newMode = !isEnterpriseMode;
+    setIsEnterpriseMode(newMode);
+    
+    // Show popup
+    setShowModePopup(true);
+    setTimeout(() => {
+      setShowModePopup(false);
+    }, 2000);
+
+    // If switching to single user mode, set DTNC token
+    if (!newMode) {
+      setFormData({
+        ...formData,
+        tokenAddress: DTNC_TOKEN
+      });
+    } else {
+      // Clear token address for enterprise mode
+      setFormData({
+        ...formData,
+        tokenAddress: ''
+      });
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.owner || !formData.content || !formData.tokenAddress || !formData.reward) {
+    
+    // Set token address based on mode before submission
+    const finalTokenAddress = isEnterpriseMode ? formData.tokenAddress : DTNC_TOKEN;
+    
+    if (!formData.owner || !formData.content || !finalTokenAddress || !formData.reward || !formData.totalValidators) {
       alert("All fields are required");
       return;
     }
+
+    // Validate totalValidators is at least 3
+    const validatorCount = parseInt(formData.totalValidators);
+    if (validatorCount < 3) {
+      alert("Minimum 3 validators are required");
+      return;
+    }
     
-    console.log("Submitting log:", formData);
-    setIsSubmitted(true);
-    
-    setTimeout(() => {
-      setIsSubmitted(false);
-      setFormData({
-        owner: '',
-        content: '',
-        tokenAddress: '',
-        reward: ''
+    try {
+      const token = localStorage.getItem('datinToken');
+      
+      if (!token) {
+        alert("You must be logged in to submit a report");
+        navigate('/login');
+        return;
+      }
+      
+      const response = await fetch('http://localhost:3001/submit-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...formData,
+          tokenAddress: finalTokenAddress
+        }),
       });
-      setContentLength(0);
-    }, 3000);
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        console.log("Log submitted successfully:", data);
+        setIsSubmitted(true);
+        
+        setTimeout(() => {
+          setIsSubmitted(false);
+          setFormData({
+            owner: '',
+            content: '',
+            tokenAddress: isEnterpriseMode ? '' : DTNC_TOKEN,
+            reward: '',
+            totalValidators: ''
+          });
+          setContentLength(0);
+        }, 3000);
+      } else {
+        alert("Failed to submit log: " + (data.message || "Unknown error"));
+      }
+    } catch (error) {
+      console.error("Error submitting log:", error);
+      alert("Error submitting log. Please try again.");
+    }
   };
 
   const toggleDropdown = () => {
@@ -63,6 +155,8 @@ const LogSubmitForm = () => {
       navigate('/chat');
     } else if (page === 'Dashboard') {
       navigate('/');
+    } else if (page === 'ViewReports') {
+      navigate('/view-reports');
     }
     
     setShowDropdown(false);
@@ -70,9 +164,30 @@ const LogSubmitForm = () => {
 
   return (
     <div className="log-submit-container">
+      {/* Mode Switch Popup */}
+      {showModePopup && (
+        <div className="mode-popup">
+          <p>Switched to {isEnterpriseMode ? 'Enterprise' : 'Single User'} Mode</p>
+        </div>
+      )}
+
       <div className="header">
         <div className="datin-logo" onClick={() => navigate('/')}>DATIN</div>
         <div className="header-title">AI Threat Intelligence Assistant</div>
+        
+        {/* Mode Toggle Switch */}
+        <div className="mode-toggle-container">
+          <span className="mode-label">{isEnterpriseMode ? 'Enterprise' : 'Single User'}</span>
+          <label className="toggle-switch">
+            <input 
+              type="checkbox" 
+              checked={isEnterpriseMode} 
+              onChange={handleModeToggle}
+            />
+            <span className="toggle-slider"></span>
+          </label>
+        </div>
+
         <div className="profile-container">
           <div className="user-icon" onClick={toggleDropdown}>
             <div className="profile-icon"></div>
@@ -81,6 +196,9 @@ const LogSubmitForm = () => {
             <div className="dropdown-menu">
               <div className="dropdown-item" onClick={() => handleNavigation('ChatInterface')}>
                 Chat Interface
+              </div>
+              <div className="dropdown-item" onClick={() => handleNavigation('ViewReports')}>
+                View Reports
               </div>
               <div className="dropdown-item" onClick={() => handleNavigation('Dashboard')}>
                 Home
@@ -110,6 +228,16 @@ const LogSubmitForm = () => {
           
           <div className="sidebar-section">
             <h3 className="section-title">Threat Report History</h3>
+            
+            {/* NEW: View All Reports Button */}
+            <div 
+              className="threat-history-item view-reports-button" 
+              onClick={() => navigate('/view-reports')}
+            >
+              <div className="file-icon" style={{ backgroundColor: 'var(--accent-color)' }}></div>
+              <span style={{ fontWeight: 'bold', color: 'var(--accent-color)' }}>📊 View All Reports</span>
+            </div>
+            
             <div className="threat-history-item">
               <div className="file-icon"></div>
               <span>Network Intrusion...</span>
@@ -163,9 +291,11 @@ const LogSubmitForm = () => {
                 <input
                   type="text"
                   name="tokenAddress"
-                  value={formData.tokenAddress}
+                  value={isEnterpriseMode ? formData.tokenAddress : DTNC_TOKEN}
                   onChange={handleChange}
-                  placeholder="requested token for reward"
+                  placeholder={isEnterpriseMode ? "requested token for reward" : "ONLY FOR ENTERPRISES"}
+                  className={isEnterpriseMode ? "" : "disabled-input"}
+                  disabled={!isEnterpriseMode}
                   required
                 />
               </div>
@@ -178,6 +308,18 @@ const LogSubmitForm = () => {
                   value={formData.reward}
                   onChange={handleChange}
                   placeholder="enter amount of coins for reward"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Total Validators:</label>
+                <input
+                  type="text"
+                  name="totalValidators"
+                  value={formData.totalValidators}
+                  onChange={handleChange}
+                  placeholder="minimum 3 validators required"
                   required
                 />
               </div>

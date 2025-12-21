@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './ChatInterface.css';
 
+// API configuration
+const API_CONFIG = {
+  BASE_URL: 'http://127.0.0.1:8000',
+  ENDPOINT: '/query',  
+};
+
 const ChatInterface = () => {
   const [message, setMessage] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -26,17 +32,37 @@ const ChatInterface = () => {
       id: 1,
       sender: 'ai',
       content: 'Welcome to DATIN - Decentralized AI Threat Intelligence Network. How can I assist with your cybersecurity inquiry today?',
-      time: `${new Date().getHours()}:${new Date().getMinutes()}`
+      time: '10:45 AM'
     },
   ];
   
   const [messages, setMessages] = useState(initialMessages);
   
+  const formatResponseText = (text) => {
+    if (!text) return '';
+    
+    let formattedText = text;
+    
+
+    formattedText = formattedText.replace(/\*([\w\s-]+):\*/g, '<strong>$1:</strong>');
+    
+
+    formattedText = formattedText.replace(/\*/g, '');
+    
+ 
+    formattedText = formattedText.replace(/\n\n/g, '<br/><br/>');
+    
+  
+    formattedText = formattedText.replace(/\n/g, ' ');
+    
+    return formattedText;
+  };
+  
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
     if (message.trim()) {
-      // Create and add user message to chat
+
       const newMessage = {
         id: messages.length + 1,
         sender: 'user',
@@ -46,59 +72,65 @@ const ChatInterface = () => {
       
       setMessages([...messages, newMessage]);
       
-      // Show loading state
       setIsLoading(true);
       
       try {
-        // Send POST request to the endpoint
-        const response = await axios.post('http://127.0.0.1:8000/query', {
-          query: message
-        });
+
+        console.log('Sending query:', message);
+        const response = await axios.post(
+          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINT}?query=${encodeURIComponent(message)}`
+        );
         
-        // Extract data from nested JSON response
-        const responseData = response.data;
+        console.log('Response from API:', response.data);
         
-        if (responseData && responseData.messages && responseData.query_resp) {
-          // Unpack the nested JSON response
-          const { messages: responseMessages, query_resp } = responseData;
-          
-          // Create AI response message
-          const aiResponse = {
-            id: messages.length + 2,
-            sender: 'ai',
-            content: responseMessages || query_resp || 'I received your query, but there was an issue processing it.',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          
-          setMessages(prev => [...prev, aiResponse]);
-          
-          // You can also handle the query_resp data specifically if needed
-          console.log('Full query response:', query_resp);
+
+        let aiResponseContent = '';
+        
+        if (response.data && response.data.message) {
+          aiResponseContent = response.data.message.query_resp || 
+                             response.data.message || 
+                             'Received response in unexpected format';
         } else {
-          // Handle unexpected response structure
-          const aiResponse = {
-            id: messages.length + 2,
-            sender: 'ai',
-            content: 'I received your query, but the response format was unexpected.',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          
-          setMessages(prev => [...prev, aiResponse]);
+          aiResponseContent = 'I received your query, but the response format was unexpected.';
         }
+        
+        const formattedContent = formatResponseText(aiResponseContent);
+        
+        const aiResponse = {
+          id: messages.length + 2,
+          sender: 'ai',
+          content: formattedContent,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isHTML: true 
+        };
+        
+        setMessages(prev => [...prev, aiResponse]);
+        
       } catch (error) {
         console.error('Error sending query:', error);
         
-        // Handle error in UI
+        let errorContent = 'Sorry, there was an error processing your request.';
+        
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+          console.error('Error status:', error.response.status);
+          
+          if (error.response.status === 422) {
+            errorContent = 'The server could not process your request format. This might be an API compatibility issue.';
+          }
+        } else if (error.request) {
+          errorContent = 'Could not reach the server. Please check if the FastAPI backend is running.';
+        }
+        
         const errorMessage = {
           id: messages.length + 2,
           sender: 'ai',
-          content: 'Sorry, there was an error processing your request. Please try again later.',
+          content: errorContent,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
         
         setMessages(prev => [...prev, errorMessage]);
       } finally {
-        // Clear input and loading state
         setMessage('');
         setIsLoading(false);
       }
@@ -189,9 +221,11 @@ const ChatInterface = () => {
           <div className="messages-container">
             {messages.map(msg => (
               <div key={msg.id} className={`message message-${msg.sender}`}>
-                <div className="message-content">
-                  {msg.content}
-                </div>
+                {msg.isHTML ? (
+                  <div className="message-content" dangerouslySetInnerHTML={{ __html: msg.content }}></div>
+                ) : (
+                  <div className="message-content">{msg.content}</div>
+                )}
                 <div className="message-info">
                   {msg.sender === 'user' ? 'You' : 'AI Assistant'} • {msg.time}
                 </div>
