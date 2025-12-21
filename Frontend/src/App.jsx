@@ -5,6 +5,9 @@ import './App.css';
 import InteractiveCoin from './components/InteractiveCoin.js';
 import ChatInterface from './components/ChatInterface.jsx';
 import LogSubmitForm from './components/LogSubmitForm.js';
+import ReportLogViewer from './components/ReportLogViewer.jsx';
+import DTNCStore from './components/DTNCStore';
+
 
 
 const TypingAnimation = ({ text }) => {
@@ -117,11 +120,53 @@ const FeatureCard = ({ icon, title, description, index }) => {
 };
 
 const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+  
   if (!isOpen) return null;
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Login attempted');
+    setError('');
+    setLoading(true);
+    
+    try {
+      const response = await fetch('http://localhost:3001/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+      
+      // Store token and user data in localStorage
+      localStorage.setItem('datinToken', data.token);
+      localStorage.setItem('datinUser', JSON.stringify(data.user));
+      
+      // Success notification
+      alert('Login successful!');
+      
+      // Close modal and stay on home page
+      onClose();
+      
+      // Reload to update UI state (shows user in navbar)
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      setError(error.message || 'Failed to login. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -139,14 +184,31 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
           <button className="datin-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="datin-modal-body">
+          {error && <div className="datin-error-message">{error}</div>}
           <form className="datin-form" onSubmit={handleSubmit}>
             <div className="datin-form-group">
               <label htmlFor="email">Email</label>
-              <input type="email" id="email" placeholder="Your email address" className="datin-input" required />
+              <input 
+                type="email" 
+                id="email" 
+                placeholder="Your email address" 
+                className="datin-input" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required 
+              />
             </div>
             <div className="datin-form-group">
               <label htmlFor="password">Password</label>
-              <input type="password" id="password" placeholder="Your password" className="datin-input" required />
+              <input 
+                type="password" 
+                id="password" 
+                placeholder="Your password" 
+                className="datin-input" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required 
+              />
             </div>
             <div className="datin-form-footer">
               <motion.button 
@@ -154,8 +216,9 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
                 className="datin-primary datin-form-submit"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                disabled={loading}
               >
-                Login
+                {loading ? 'Logging in...' : 'Login'}
               </motion.button>
             </div>
           </form>
@@ -169,11 +232,63 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
 };
 
 const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+  
   if (!isOpen) return null;
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Signup attempted');
+    setError('');
+    setLoading(true);
+    
+    try {
+      const response = await fetch('http://localhost:3001/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fullName, email, password, walletAddress }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+      
+      // DON'T store token - let user login manually
+      // localStorage.setItem('datinToken', data.token);
+      // localStorage.setItem('datinUser', JSON.stringify(data.user));
+      
+      // Success notification
+      alert('Account created successfully! Please login with your credentials.');
+      
+      // Close modal and stay on home page
+      onClose();
+      
+      // Clear form fields
+      setFullName('');
+      setEmail('');
+      setPassword('');
+      setWalletAddress('');
+      
+      // Open login modal after successful signup
+      setTimeout(() => {
+        onSwitchToLogin();
+      }, 500);
+      
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError(error.message || 'Failed to create account. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -191,22 +306,55 @@ const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
           <button className="datin-modal-close" onClick={onClose}>×</button>
         </div>
         <div className="datin-modal-body">
+          {error && <div className="datin-error-message">{error}</div>}
           <form className="datin-form" onSubmit={handleSubmit}>
             <div className="datin-form-group">
               <label htmlFor="fullname">Full Name</label>
-              <input type="text" id="fullname" placeholder="Your full name" className="datin-input" required />
+              <input 
+                type="text" 
+                id="fullname" 
+                placeholder="Your full name" 
+                className="datin-input" 
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required 
+              />
             </div>
             <div className="datin-form-group">
               <label htmlFor="signup-email">Email</label>
-              <input type="email" id="signup-email" placeholder="Your email address" className="datin-input" required />
+              <input 
+                type="email" 
+                id="signup-email" 
+                placeholder="Your email address" 
+                className="datin-input" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required 
+              />
             </div>
             <div className="datin-form-group">
               <label htmlFor="signup-password">Password</label>
-              <input type="password" id="signup-password" placeholder="Create a password" className="datin-input" required />
+              <input 
+                type="password" 
+                id="signup-password" 
+                placeholder="Create a password (min 6 characters)" 
+                className="datin-input" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required 
+                minLength={6}
+              />
             </div>
             <div className="datin-form-group">
               <label htmlFor="wallet">Wallet Address (Optional)</label>
-              <input type="text" id="wallet" placeholder="Your blockchain wallet address" className="datin-input" />
+              <input 
+                type="text" 
+                id="wallet" 
+                placeholder="Your blockchain wallet address" 
+                className="datin-input" 
+                value={walletAddress}
+                onChange={(e) => setWalletAddress(e.target.value)}
+              />
             </div>
             <div className="datin-form-footer">
               <motion.button 
@@ -214,8 +362,9 @@ const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
                 className="datin-primary datin-form-submit"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
+                disabled={loading}
               >
-                Create Account
+                {loading ? 'Creating Account...' : 'Create Account'}
               </motion.button>
             </div>
           </form>
@@ -231,6 +380,8 @@ const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
 const Landing = () => {
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
   
   const featuresRef = useRef(null);
@@ -241,6 +392,17 @@ const Landing = () => {
   const titleRef = useRef(null);
   const titleInView = useInView(titleRef, { once: false, amount: 0.5 });
 
+  useEffect(() => {
+    // Check if user is logged in on component mount
+    const token = localStorage.getItem('datinToken');
+    const userData = localStorage.getItem('datinUser');
+    
+    if (token && userData) {
+      setIsLoggedIn(true);
+      setUser(JSON.parse(userData));
+    }
+  }, []);
+  
   useEffect(() => {
     if (titleInView) {
       featuresControls.start({
@@ -286,6 +448,14 @@ const Landing = () => {
   const closeModals = () => {
     setIsLoginOpen(false);
     setIsSignupOpen(false);
+  };
+  
+  const handleLogout = () => {
+    localStorage.removeItem('datinToken');
+    localStorage.removeItem('datinUser');
+    setIsLoggedIn(false);
+    setUser(null);
+    navigate('/');
   };
 
   // Navigation handler for "Ask a Query" button
@@ -336,15 +506,30 @@ const Landing = () => {
           <li><a href="#how-it-works">How It Works</a></li>
           <li><a href="#enterprise">Enterprise</a></li>
           <li><a href="#contact">Contact</a></li>
+          <li><Link to="/store" style={{color: '#00ffaa', fontWeight: 600}}>🪙 Store</Link></li> {/* ADDED */}
         </ul>
-        <motion.button 
-          className="datin-cta" 
-          onClick={openLogin}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Login
-        </motion.button>
+        {isLoggedIn ? (
+          <div className="datin-user-menu">
+            <span>Welcome, {user?.fullName}</span>
+            <motion.button 
+              className="datin-cta" 
+              onClick={handleLogout}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Logout
+            </motion.button>
+          </div>
+        ) : (
+          <motion.button 
+            className="datin-cta" 
+            onClick={openLogin}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Login
+          </motion.button>
+        )}
       </motion.nav>
 
       <section className="datin-hero">
@@ -377,6 +562,7 @@ const Landing = () => {
             >
               Ask a Query
             </motion.button>
+        
             <motion.button 
               className="datin-secondary"
               whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.15)" }}
@@ -564,7 +750,8 @@ const App = () => {
         <Route path="/" element={<Landing />} />
         <Route path="/chat" element={<ChatInterface />} />
         <Route path="/submit-report" element={<LogSubmitForm />} />
-        <Route path="/dashboard" element={<Landing />} />
+        <Route path="/view-reports" element={<ReportLogViewer />} />
+        <Route path="/store" element={<DTNCStore />} />  {/* ADDED */}
       </Routes>
     </Router>
   );
