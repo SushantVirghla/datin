@@ -1,0 +1,695 @@
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { spawn } = require('child_process');
+const path = require('path');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// JWT Secret Key
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production';
+
+// Solana Configuration
+const SOLANA_PROGRAM_ID = process.env.SOLANA_PROGRAM_ID || '68iijH9zSBsV8iB8yYXxicyn13MMEkTnUVMhQEa6BHNj';
+
+// Blockchain Data Limits (to prevent memory errors)
+const MAX_CONTENT_LENGTH = 30;
+const MAX_TOKEN_LENGTH = 10;
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json());
+
+// In-memory storage
+const reports = [];
+const users = [];
+
+// Demo keypair for testing (In production, use user's actual wallet)
+const DEMO_KEYPAIR = [21,15,249,203,216,105,73,57,168,107,219,29,207,60,183,176,241,91,91,51,108,217,235,25,112,144,225,9,97,92,41,119,25,23,49,39,246,225,103,135,242,14,170,96,174,224,76,194,140,240,185,33,40,45,135,170,164,140,80,217,55,201,208,82];
+
+// ==================== UTILITY FUNCTIONS ====================
+
+/**
+ * Sanitize and truncate data for blockchain storage
+ */
+function sanitizeBlockchainData(data) {
+  const sanitized = {
+    content: String(data.content || '').substring(0, MAX_CONTENT_LENGTH),
+    tokenAddress: String(data.tokenAddress || '').substring(0, MAX_TOKEN_LENGTH),
+    reward: parseInt(data.reward) || 10,
+    totalValidators: parseInt(data.totalValidators) || 5
+  };
+  
+  // Ensure positive values
+  if (sanitized.reward <= 0) sanitized.reward = 10;
+  if (sanitized.totalValidators <= 0) sanitized.totalValidators = 5;
+  
+  return sanitized;
+}
+
+/**
+ * Print a nicely formatted box in terminal
+ */
+function printBox(title, content) {
+  const width = 80;
+  const line = '═'.repeat(width);
+  console.log(`\n╔${line}╗`);
+  console.log(`║ ${title.padEnd(width - 2)} ║`);
+  console.log(`╠${line}╣`);
+  
+  if (Array.isArray(content)) {
+    content.forEach(item => {
+      console.log(`║ ${item.padEnd(width - 2)} ║`);
+    });
+  } else {
+    console.log(`║ ${content.padEnd(width - 2)} ║`);
+  }
+  
+  console.log(`╚${line}╝\n`);
+}
+
+/**
+ * Format report details for display
+ */
+function formatReportDetails(report) {
+  return [
+    `📋 Transaction ID: ${report.transactionId}`,
+    `👤 User Email: ${report.userEmail}`,
+    `👤 Owner: ${report.owner}`,
+    `📝 Content: ${report.content}`,
+    `🪙 Token Address: ${report.tokenAddress}`,
+    `💰 Reward: ${report.reward}`,
+    `✅ Total Validators: ${report.totalValidators}`,
+    `📊 Status: ${report.status}`,
+    `⛓️  Blockchain Status: ${report.blockchainStatus}`,
+    `🕒 Created At: ${report.createdAt}`
+  ];
+}
+
+// ==================== SOLANA INTEGRATION ====================
+
+/**
+ * Call Python Solana client
+ */
+function callSolanaClient(command, args) {
+  return new Promise((resolve, reject) => {
+    const pythonScript = path.join(__dirname, 'solana_client.py');
+    const pythonProcess = spawn('python3', [pythonScript, command, ...args]);
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error('Python script error:', stderr);
+        reject(new Error(stderr || 'Python script failed'));
+        return;
+      }
+      
+      try {
+        // Extract JSON from stdout (may have console logs before it)
+        const lines = stdout.trim().split('\n');
+        const jsonLine = lines[lines.length - 1]; // Last line should be JSON
+        const result = JSON.parse(jsonLine);
+        resolve(result);
+      } catch (error) {
+        console.error('Failed to parse Python output:', stdout);
+        reject(new Error('Failed to parse Python response'));
+      }
+    });
+    
+    pythonProcess.on('error', (error) => {
+      reject(error);
+    });
+  });
+}
+
+/**
+ * Store data on Solana blockchain
+ */
+async function storeOnSolana(data, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { content, tokenAddress, reward, totalValidators, userKeypair } = data;
+      
+      const keypair = userKeypair || DEMO_KEYPAIR;
+      const keypairJson = JSON.stringify(keypair);
+      
+      console.log(`🔄 Attempt ${i + 1}/${retries} - Sending to Solana blockchain...`);
+      
+      const result = await callSolanaClient('store', [
+        keypairJson,
+        content,
+        tokenAddress,
+        reward.toString(),
+        totalValidators.toString()
+      ]);
+      
+      if (result.success) {
+        console.log('✅ Solana response:', result);
+        return result;
+      }
+      
+      // If not successful but no timeout, return immediately
+      if (!result.error.includes('timeout') && !result.error.includes('Timeout')) {
+        return result;
+      }
+      
+      // Wait before retry (exponential backoff)
+      if (i < retries - 1) {
+        const waitTime = Math.pow(2, i) * 1000; // 1s, 2s, 4s
+        console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+    } catch (error) {
+      console.error(`❌ Attempt ${i + 1} failed:`, error.message);
+      if (i === retries - 1) {
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    }
+  }
+  
+  return {
+    success: false,
+    error: 'Failed after multiple retries'
+  };
+}
+
+/**
+ * Get data from Solana blockchain
+ */
+async function getFromSolana(ownerPubkey) {
+  try {
+    const result = await callSolanaClient('get', [ownerPubkey]);
+    return result;
+  } catch (error) {
+    console.error('❌ Solana retrieval error:', error.message);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// ==================== AUTHENTICATION MIDDLEWARE ====================
+
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Access token required'
+    });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid or expired token'
+      });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// ==================== AUTHENTICATION ROUTES ====================
+
+app.post('/signup', async (req, res) => {
+  try {
+    const { fullName, email, password, walletAddress } = req.body;
+
+    if (!fullName || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full name, email, and password are required'
+      });
+    }
+
+    const existingUser = users.find(u => u.email === email);
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: 'User with this email already exists'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = {
+      id: Date.now().toString(),
+      fullName,
+      email,
+      password: hashedPassword,
+      walletAddress: walletAddress || '',
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+
+    const token = jwt.sign(
+      { 
+        id: newUser.id, 
+        email: newUser.email 
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    const userResponse = {
+      id: newUser.id,
+      fullName: newUser.fullName,
+      email: newUser.email,
+      walletAddress: newUser.walletAddress,
+      createdAt: newUser.createdAt
+    };
+
+    console.log('✅ New user registered:', userResponse.email);
+
+    res.status(201).json({
+      success: true,
+      message: 'Account created successfully',
+      token,
+      user: userResponse
+    });
+
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during signup'
+    });
+  }
+});
+
+app.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
+    const user = users.find(u => u.email === email);
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        email: user.email 
+      },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    const userResponse = {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      walletAddress: user.walletAddress,
+      createdAt: user.createdAt
+    };
+
+    console.log('✅ User logged in:', userResponse.email);
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: userResponse
+    });
+
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error during login'
+    });
+  }
+});
+
+app.get('/verify-token', authenticateToken, (req, res) => {
+  const user = users.find(u => u.id === req.user.id);
+  
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+
+  const userResponse = {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    walletAddress: user.walletAddress,
+    createdAt: user.createdAt
+  };
+
+  res.json({
+    success: true,
+    user: userResponse
+  });
+});
+
+app.get('/profile', authenticateToken, (req, res) => {
+  const user = users.find(u => u.id === req.user.id);
+  
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
+  }
+
+  const userResponse = {
+    id: user.id,
+    fullName: user.fullName,
+    email: user.email,
+    walletAddress: user.walletAddress,
+    createdAt: user.createdAt
+  };
+
+  res.json({
+    success: true,
+    user: userResponse
+  });
+});
+
+// ==================== REPORT ROUTES WITH BLOCKCHAIN ====================
+
+app.post('/submit-report', authenticateToken, async (req, res) => {
+  try {
+    const { owner, content, tokenAddress, reward, totalValidators } = req.body;
+    
+    if (!content || !tokenAddress || !reward) {
+      return res.status(400).json({
+        success: false,
+        message: 'Content, tokenAddress, and reward are required'
+      });
+    }
+    
+    const transactionId = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Store FULL content locally (for your database)
+    const report = {
+      transactionId,
+      owner: owner || req.user.email,
+      content, // Full content stored locally
+      tokenAddress,
+      reward,
+      totalValidators: totalValidators || '5',
+      status: 'pending',
+      userId: req.user.id,
+      userEmail: req.user.email,
+      createdAt: new Date().toISOString(),
+      blockchainStatus: 'processing'
+    };
+    
+    reports.push(report);
+    
+    // Print formatted report details
+    printBox('📋 NEW REPORT SUBMITTED', formatReportDetails(report));
+    
+    // Return immediate response
+    res.status(200).json({
+      success: true,
+      transactionId,
+      message: 'Report submitted successfully',
+      status: 'pending',
+      blockchainStatus: 'processing'
+    });
+
+    // *** SANITIZE DATA FOR BLOCKCHAIN (TRUNCATE TO PREVENT MEMORY ERRORS) ***
+    const blockchainData = sanitizeBlockchainData({
+      content,
+      tokenAddress,
+      reward: parseInt(reward),
+      totalValidators: parseInt(totalValidators || 5)
+    });
+    
+    console.log('⛓️  Starting blockchain storage...');
+    console.log('📦 Sanitized blockchain data:', {
+      originalContentLength: content.length,
+      truncatedContentLength: blockchainData.content.length,
+      content: blockchainData.content,
+      tokenAddress: blockchainData.tokenAddress,
+      reward: blockchainData.reward,
+      totalValidators: blockchainData.totalValidators
+    });
+    
+    // Store on Solana blockchain asynchronously
+    storeOnSolana({
+      content: blockchainData.content,
+      tokenAddress: blockchainData.tokenAddress,
+      reward: blockchainData.reward,
+      totalValidators: blockchainData.totalValidators,
+      userKeypair: null // Will use demo keypair
+    })
+    .then(result => {
+      // Update report status
+      const reportIndex = reports.findIndex(r => r.transactionId === transactionId);
+      if (reportIndex !== -1) {
+        reports[reportIndex].blockchainStatus = result.success ? 'confirmed' : 'failed';
+        reports[reportIndex].blockchainSignature = result.signature;
+        reports[reportIndex].blockchainPDA = result.pda;
+        reports[reportIndex].blockchainError = result.error;
+        reports[reportIndex].blockchainAction = result.action; // 'initialized' or 'updated'
+        
+        if (result.success) {
+          const successDetails = [
+            `✅ BLOCKCHAIN STORAGE SUCCESSFUL`,
+            ``,
+            `Transaction ID: ${transactionId}`,
+            `Action: ${result.action.toUpperCase()}`,
+            `Signature: ${result.signature}`,
+            `PDA: ${result.pda}`,
+            `Owner: ${result.owner}`,
+            `Content stored: "${blockchainData.content}"`,
+            `Token: ${blockchainData.tokenAddress}`,
+            `Reward: ${blockchainData.reward}`,
+            `Validators: ${blockchainData.totalValidators}`,
+            ``,
+            `🔗 View on Explorer:`,
+            `${result.explorerUrl}`
+          ];
+          printBox('⛓️  BLOCKCHAIN UPDATE', successDetails);
+        } else {
+          const errorDetails = [
+            `❌ BLOCKCHAIN STORAGE FAILED`,
+            ``,
+            `Transaction ID: ${transactionId}`,
+            `Error: ${result.error}`,
+            ``,
+            `Please check the error details above.`
+          ];
+          printBox('⛓️  BLOCKCHAIN ERROR', errorDetails);
+        }
+      }
+    })
+    .catch(error => {
+      console.error('❌ Blockchain storage error:', error);
+      const reportIndex = reports.findIndex(r => r.transactionId === transactionId);
+      if (reportIndex !== -1) {
+        reports[reportIndex].blockchainStatus = 'failed';
+        reports[reportIndex].blockchainError = error.message;
+      }
+      
+      printBox('⛓️  BLOCKCHAIN ERROR', [
+        `❌ Unexpected error during blockchain storage`,
+        `Transaction ID: ${transactionId}`,
+        `Error: ${error.message}`
+      ]);
+    });
+    
+  } catch (error) {
+    console.error('Error processing report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+app.get('/reports', authenticateToken, (req, res) => {
+  res.json({
+    success: true,
+    count: reports.length,
+    reports
+  });
+});
+
+app.get('/my-reports', authenticateToken, (req, res) => {
+  const userReports = reports.filter(r => r.userId === req.user.id);
+  
+  res.json({
+    success: true,
+    count: userReports.length,
+    reports: userReports
+  });
+});
+
+app.get('/transaction-status/:txId', (req, res) => {
+  const report = reports.find(r => r.transactionId === req.params.txId);
+  
+  if (report) {
+    res.json({
+      success: true,
+      report
+    });
+  } else {
+    res.status(404).json({
+      success: false,
+      message: 'Transaction not found'
+    });
+  }
+});
+
+// ==================== BLOCKCHAIN ROUTES ====================
+
+// Get blockchain data for a specific wallet
+app.get('/blockchain-data/:walletAddress', authenticateToken, async (req, res) => {
+  try {
+    const { walletAddress } = req.params;
+    
+    console.log('📡 Fetching blockchain data for:', walletAddress);
+    const result = await getFromSolana(walletAddress);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Error fetching blockchain data:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching blockchain data',
+      error: error.message
+    });
+  }
+});
+
+// Test blockchain connection
+app.get('/blockchain-health', async (req, res) => {
+  try {
+    // Test connection by trying to get data for a known address
+    const testAddress = '11111111111111111111111111111111';
+    const result = await getFromSolana(testAddress);
+    
+    res.json({
+      success: true,
+      message: 'Blockchain connection is healthy',
+      programId: SOLANA_PROGRAM_ID,
+      network: 'devnet',
+      testResult: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Blockchain connection failed',
+      error: error.message
+    });
+  }
+});
+
+// ==================== UTILITY ROUTES ====================
+
+app.get('/users', (req, res) => {
+  const usersWithoutPasswords = users.map(u => ({
+    id: u.id,
+    fullName: u.fullName,
+    email: u.email,
+    walletAddress: u.walletAddress,
+    createdAt: u.createdAt
+  }));
+
+  res.json({
+    success: true,
+    count: users.length,
+    users: usersWithoutPasswords
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    blockchainIntegration: 'active',
+    programId: SOLANA_PROGRAM_ID,
+    maxContentLength: MAX_CONTENT_LENGTH,
+    maxTokenLength: MAX_TOKEN_LENGTH
+  });
+});
+
+app.get('/reports-debug', (req, res) => {
+  res.json({
+    success: true,
+    count: reports.length,
+    reports: reports
+  });
+});
+
+// ==================== START SERVER ====================
+
+app.listen(PORT, () => {
+  console.log('='.repeat(80));
+  console.log('🚀 BACKEND SERVER STARTED');
+  console.log('='.repeat(80));
+  console.log(`📍 Server running on: http://localhost:${PORT}`);
+  console.log(`📍 Auth endpoints:`);
+  console.log(`   POST /signup`);
+  console.log(`   POST /login`);
+  console.log(`   GET  /verify-token`);
+  console.log(`📊 Report endpoints:`);
+  console.log(`   POST /submit-report (stores on blockchain)`);
+  console.log(`   GET  /my-reports`);
+  console.log(`   GET  /reports`);
+  console.log(`⛓️  Blockchain endpoints:`);
+  console.log(`   GET  /blockchain-data/:walletAddress`);
+  console.log(`   GET  /blockchain-health`);
+  console.log(`🔧 Solana Program ID: ${SOLANA_PROGRAM_ID}`);
+  console.log(`🌐 Network: Devnet`);
+  console.log(`📦 Data Limits: Content=${MAX_CONTENT_LENGTH}, Token=${MAX_TOKEN_LENGTH}`);
+  console.log('='.repeat(80));
+});
