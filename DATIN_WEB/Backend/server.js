@@ -130,7 +130,7 @@ function proxyRagRequest(targetUrl, req, res, isStream) {
   };
 
   // Hardcoded or env-based system token signed with PC's JWT_SECRET_KEY
-  const PC_JWT_TOKEN = process.env.PC_JWT_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6IndpemFyZCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3ODk5MjQ2ODcsImV4cCI6MTgyMTQ2MDY4N30.lrIsNKMdDMgAgGToTrK8wMIeNKYGJx3FoHxhgdeRY7A';
+  const PC_JWT_TOKEN = process.env.PC_JWT_TOKEN || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IndpemFyZCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3ODk5Mjg0MTEsImV4cCI6MTgyMTQ2NDQxMX0.m2f1emcJqg3hrgEjz4hfkceZKq3KSDcjbqaYPjIRnt4';
   options.headers['Authorization'] = `Bearer ${PC_JWT_TOKEN}`;
 
   const proxyReq = transport.request(options, (proxyRes) => {
