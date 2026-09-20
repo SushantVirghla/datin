@@ -3,6 +3,27 @@ import { motion } from 'framer-motion';
 import { useHoverSound, useClickSound } from '../hooks/useHoverSound';
 import './DevPage.css';
 
+const DeveloperAvatar = ({ dev }) => {
+  const [hasError, setHasError] = useState(false);
+
+  return (
+    <div className="developer-avatar-container">
+      {!hasError ? (
+        <img
+          src={dev.image}
+          alt={dev.name}
+          className="developer-avatar-img"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <div className="developer-avatar-sphere">
+          <span>{dev.initials}</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const DevPage = () => {
   const [activeFlowTab, setActiveFlowTab] = useState('rag'); // 'rag' | 'eval'
   const hover = useHoverSound();
@@ -11,30 +32,26 @@ const DevPage = () => {
   const developers = [
     {
       name: 'Sushant Virghla',
-      role: 'Lead Architect & AI Systems Engineer',
-      tag: 'Project Lead',
       url: 'https://www.linkedin.com/in/sushant-virghla-b74435329/',
+      image: '/assets/devs/sushant.jpg',
       initials: 'SV',
     },
     {
       name: 'Sumit Sharma',
-      role: 'Lead Core Backend & Decentralized Systems',
-      tag: 'Co-Author',
       url: 'https://www.linkedin.com/in/async-sunlight/',
+      image: '/assets/devs/sumit.jpg',
       initials: 'SS',
     },
     {
       name: 'Udisha Singh',
-      role: 'AI Researcher & Data Security Analyst',
-      tag: 'Co-Author',
       url: 'https://www.linkedin.com/in/udisha-singh-379b213a9/',
+      image: '/assets/devs/udisha.jpg',
       initials: 'US',
     },
     {
       name: 'Uday',
-      role: 'Full Stack Engineer & Security Specialist',
-      tag: 'Core Contributor',
       url: 'https://www.linkedin.com/in/uday-sonkar12/',
+      image: '/assets/devs/uday.jpg',
       initials: 'U',
     },
   ];
@@ -105,7 +122,7 @@ const DevPage = () => {
             <div className="dev-schematic-stage">
               {activeFlowTab === 'rag' ? (
                 <div className="schematic-diagram-view">
-                  <svg className="schematic-flow-svg" viewBox="0 0 980 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg className="schematic-flow-svg" viewBox="0 0 1000 480" preserveAspectRatio="xMidYMid meet" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                       <linearGradient id="primaryGlow" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stopColor="#007AFF" />
@@ -260,7 +277,7 @@ const DevPage = () => {
                 </div>
               ) : (
                 <div className="schematic-diagram-view">
-                  <svg className="schematic-flow-svg" viewBox="0 0 980 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg className="schematic-flow-svg" viewBox="0 0 940 460" preserveAspectRatio="xMidYMid meet" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                       <marker id="evalArrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                         <path d="M 0 1 L 8 5 L 0 9 z" fill="#007AFF" />
@@ -453,31 +470,8 @@ const DevPage = () => {
               </div>
 
               <h3 className="research-paper-title">
-                Self-Healing RAG: LLM-as-a-Judge Reflection Architectures for Zero-Day Threat Context
+                Self Healing Rag (in progress)
               </h3>
-
-              <div className="research-meta-row">
-                <span className="research-authors">
-                  <strong>Research Team:</strong> DATIN AI Architecture Group
-                </span>
-                <span className="research-conf">
-                  <strong>Track:</strong> Automated Threat Analysis & Neural Groundedness
-                </span>
-              </div>
-
-              <p className="research-abstract">
-                Investigating dual-model evaluation loops using Langchain LangSmith evaluators to measure hallucination rates and generate real-time corrective prompts during cyber threat extraction.
-              </p>
-
-              <div className="research-progress-box">
-                <div className="progress-bar-track">
-                  <div className="progress-bar-fill" style={{ width: '68%' }} />
-                </div>
-                <div className="progress-bar-labels">
-                  <span>Experimental Evaluation Phase</span>
-                  <span>68% Complete</span>
-                </div>
-              </div>
             </div>
 
             {/* Paper 3: In Progress */}
@@ -488,31 +482,8 @@ const DevPage = () => {
               </div>
 
               <h3 className="research-paper-title">
-                Economic Incentive Models & Sybil Defense in Decentralized Threat Intelligence Networks
+                Decentralized AI Threat intelligence network (DATIN)
               </h3>
-
-              <div className="research-meta-row">
-                <span className="research-authors">
-                  <strong>Research Team:</strong> DATIN Consensus & Cryptoeconomics Lab
-                </span>
-                <span className="research-conf">
-                  <strong>Track:</strong> Tokenomics & Byzantine Fault Tolerance
-                </span>
-              </div>
-
-              <p className="research-abstract">
-                Game-theoretic modeling of validator collateral slashing, dynamic DTNC reward scheduling, and stake-weighted reputation algorithms under adversarial network conditions.
-              </p>
-
-              <div className="research-progress-box">
-                <div className="progress-bar-track">
-                  <div className="progress-bar-fill" style={{ width: '42%' }} />
-                </div>
-                <div className="progress-bar-labels">
-                  <span>Formal Proofs & Simulation</span>
-                  <span>42% Complete</span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -536,15 +507,8 @@ const DevPage = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.08 }}
               >
-                <div className="developer-card-top">
-                  <div className="developer-avatar-sphere">
-                    <span>{dev.initials}</span>
-                  </div>
-                  <span className="developer-tag">{dev.tag}</span>
-                </div>
-
+                <DeveloperAvatar dev={dev} />
                 <h3 className="developer-name">{dev.name}</h3>
-                <p className="developer-role">{dev.role}</p>
 
                 <div className="developer-card-bottom">
                   <a

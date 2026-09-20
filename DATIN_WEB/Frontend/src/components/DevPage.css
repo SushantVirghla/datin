@@ -144,32 +144,33 @@
   background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.9) 0%, rgba(240, 242, 248, 0.6) 100%);
   border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 20px;
-  padding: 1.5rem;
+  padding: 1.25rem;
   overflow: hidden;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.02);
 }
 
 .schematic-diagram-view {
   width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
 }
 
 .schematic-flow-svg {
   width: 100%;
-  min-width: 820px;
+  max-width: 100%;
   height: auto;
   display: block;
 }
 
-/* Schematic SVG Shapes and 3D Hologram styling */
+/* Schematic SVG Shapes and 3D Hologram styling - NO transform translateY to prevent hover jiggle */
 .node-group {
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: filter 0.22s ease, opacity 0.22s ease;
 }
 
 .node-group:hover {
-  transform: translateY(-2px);
+  filter: brightness(1.08) drop-shadow(0 0 12px rgba(0, 122, 255, 0.45));
 }
 
 .node-box-cloud {
@@ -177,13 +178,25 @@
   stroke: rgba(0, 122, 255, 0.5);
   stroke-width: 2;
   filter: drop-shadow(0 8px 16px rgba(0, 122, 255, 0.14));
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.node-group:hover .node-box-cloud {
+  fill: rgba(0, 122, 255, 0.18);
+  stroke: rgba(0, 122, 255, 0.8);
 }
 
 .node-box-rect {
-  fill: rgba(255, 255, 255, 0.85);
+  fill: rgba(255, 255, 255, 0.9);
   stroke: rgba(0, 122, 255, 0.55);
   stroke-width: 2;
   filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.05));
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.node-group:hover .node-box-rect {
+  fill: rgba(255, 255, 255, 1);
+  stroke: rgba(0, 122, 255, 0.85);
 }
 
 .node-box-rect-alt {
@@ -191,6 +204,12 @@
   stroke: rgba(255, 149, 0, 0.6);
   stroke-width: 2;
   filter: drop-shadow(0 6px 14px rgba(255, 149, 0, 0.1));
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.node-group:hover .node-box-rect-alt {
+  fill: rgba(255, 149, 0, 0.18);
+  stroke: rgba(255, 149, 0, 0.9);
 }
 
 .node-box-para {
@@ -198,6 +217,12 @@
   stroke: rgba(255, 59, 48, 0.5);
   stroke-width: 2;
   filter: drop-shadow(0 6px 14px rgba(255, 59, 48, 0.08));
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.node-group:hover .node-box-para {
+  fill: rgba(255, 59, 48, 0.15);
+  stroke: rgba(255, 59, 48, 0.85);
 }
 
 .node-box-para-green {
@@ -205,6 +230,12 @@
   stroke: rgba(52, 199, 89, 0.6);
   stroke-width: 2;
   filter: drop-shadow(0 6px 14px rgba(52, 199, 89, 0.12));
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.node-group:hover .node-box-para-green {
+  fill: rgba(52, 199, 89, 0.2);
+  stroke: rgba(52, 199, 89, 0.9);
 }
 
 .node-box-storage {
@@ -212,6 +243,12 @@
   stroke: rgba(255, 149, 0, 0.65);
   stroke-width: 2;
   filter: drop-shadow(0 8px 18px rgba(255, 149, 0, 0.12));
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.node-group:hover .node-box-storage {
+  fill: rgba(255, 149, 0, 0.2);
+  stroke: rgba(255, 149, 0, 0.95);
 }
 
 .node-box-diamond {
@@ -219,13 +256,25 @@
   stroke: rgba(52, 199, 89, 0.6);
   stroke-width: 2;
   filter: drop-shadow(0 8px 18px rgba(52, 199, 89, 0.12));
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.node-group:hover .node-box-diamond {
+  fill: rgba(52, 199, 89, 0.22);
+  stroke: rgba(52, 199, 89, 0.95);
 }
 
 .node-box-doc {
-  fill: rgba(255, 255, 255, 0.9);
+  fill: rgba(255, 255, 255, 0.92);
   stroke: rgba(255, 149, 0, 0.55);
   stroke-width: 2;
   filter: drop-shadow(0 8px 16px rgba(255, 149, 0, 0.1));
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.node-group:hover .node-box-doc {
+  fill: #fff;
+  stroke: rgba(255, 149, 0, 0.9);
 }
 
 .node-text-title {
@@ -519,8 +568,8 @@
 
 .developers-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
 }
 
 .developer-card {
@@ -528,14 +577,16 @@
   backdrop-filter: blur(36px) saturate(190%);
   -webkit-backdrop-filter: blur(36px) saturate(190%);
   border: 1px solid rgba(255, 255, 255, 0.85);
-  border-radius: 22px;
-  padding: 1.65rem 1.45rem;
+  border-radius: 24px;
+  padding: 1.85rem 1.4rem 1.5rem;
   box-shadow:
     0 14px 38px rgba(0, 0, 0, 0.04),
     0 2px 8px rgba(0, 0, 0, 0.02),
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   transition: transform 0.25s var(--ios-spring), box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
@@ -543,62 +594,60 @@
   transform: translateY(-3px);
   border-color: rgba(0, 122, 255, 0.4);
   box-shadow:
-    0 20px 48px rgba(0, 122, 255, 0.08),
+    0 20px 48px rgba(0, 122, 255, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 1);
 }
 
-.developer-card-top {
+.developer-avatar-container {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  margin-bottom: 1rem;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(0, 122, 255, 0.4) 100%);
+  box-shadow:
+    0 8px 24px rgba(0, 122, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.15rem;
+  justify-content: center;
+}
+
+.developer-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
 }
 
 .developer-avatar-sphere {
-  width: 48px;
-  height: 48px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(0, 122, 255, 0.85) 0%, rgba(88, 86, 214, 0.85) 100%);
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.9) 0%, rgba(88, 86, 214, 0.9) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   font-family: var(--font-brand);
-  font-size: 1.05rem;
+  font-size: 1.35rem;
   font-weight: 500;
-  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.28);
-}
-
-.developer-tag {
-  display: inline-block;
-  padding: 0.22rem 0.65rem;
-  background: rgba(0, 122, 255, 0.08);
-  color: var(--accent);
-  border-radius: 999px;
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.02em;
 }
 
 .developer-name {
   font-family: var(--font-brand);
-  font-size: 1.12rem;
+  font-size: 1.15rem;
   font-weight: 500;
   letter-spacing: -0.015em;
   color: var(--text-primary);
-  margin-bottom: 0.25rem;
-}
-
-.developer-role {
-  font-size: 0.82rem;
-  font-weight: 300;
-  color: var(--text-muted);
-  line-height: 1.45;
-  margin-bottom: 1.35rem;
-  flex-grow: 1;
+  margin-bottom: 1.25rem;
 }
 
 .developer-card-bottom {
+  width: 100%;
   margin-top: auto;
 }
 
