@@ -748,10 +748,10 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// SMTP Mailer Transporter
+// SMTP Mailer Transporter with strict 4s connection timeout (prevents Render port blocking freeze)
 function getMailTransporter() {
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const user = process.env.SMTP_USER || '';
   const pass = process.env.SMTP_PASS || '';
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
@@ -762,6 +762,9 @@ function getMailTransporter() {
       port,
       secure,
       auth: { user, pass },
+      connectionTimeout: 4000, // 4s timeout
+      greetingTimeout: 4000,
+      socketTimeout: 5000,
       tls: {
         rejectUnauthorized: false
       }
@@ -771,8 +774,7 @@ function getMailTransporter() {
 }
 
 async function sendVerificationEmail(email, otp, fullName) {
-  const transporter = getMailTransporter();
-  const fromEmail = process.env.EMAIL_FROM || 'DATIN Security <no-reply@datin.network>';
+  const fromEmail = process.env.EMAIL_FROM || 'DATIN Security <sushantvirghla@gmail.com>';
 
   const htmlContent = `
   <!DOCTYPE html>
@@ -821,15 +823,90 @@ async function sendVerificationEmail(email, otp, fullName) {
   </html>
   `;
 
+  // METHOD 1: Brevo HTTP REST API (Uses HTTPS Port 443 — NEVER blocked by Render!)
+  const brevoApiKey = process.env.BREVO_API_KEY || (process.env.SMTP_PASS?.startsWith('xkeysib-') ? process.env.SMTP_PASS : null);
+  if (brevoApiKey) {
+    try {
+      const fromAddr = fromEmail.includes('<') ? fromEmail.match(/<([^>]+)>/)?.[1] || fromEmail : fromEmail;
+      const fromName = fromEmail.includes('<') ? fromEmail.split('<')[0].trim().replace(/"/g, '') : 'DATIN Security';
+
+      console.log(`🌐 Dispatching email via Brevo REST API (Port 443)...`);
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': brevoApiKey,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: fromName, email: fromAddr },
+          to: [{ email, name: fullName || 'User' }],
+          subject: `Your DATIN Verification Code is: ${otp}`,
+          htmlContent
+        })
+      });
+
+      if (response.ok) {
+        console.log(`📧 Successfully dispatched Brevo HTTP API email to ${email}`);
+        return { sent: true, provider: 'brevo-api' };
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        console.error(`⚠️ Brevo HTTP API error for ${email}:`, errJson.message || response.statusText);
+      }
+    } catch (httpErr) {
+      console.error(`⚠️ Brevo HTTP dispatch failed:`, httpErr.message);
+    }
+  }
+
+  // METHOD 2: Resend HTTP REST API (Uses HTTPS Port 443 — NEVER blocked by Render!)
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey) {
+    try {
+      console.log(`🌐 Dispatching email via Resend REST API (Port 443)...`);
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: fromEmail.includes('@resend.dev') ? fromEmail : 'DATIN Security <onboarding@resend.dev>',
+          to: [email],
+          subject: `Your DATIN Verification Code is: ${otp}`,
+          html: htmlContent
+        })
+      });
+
+      if (response.ok) {
+        console.log(`📧 Successfully dispatched Resend HTTP API email to ${email}`);
+        return { sent: true, provider: 'resend-api' };
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        console.error(`⚠️ Resend HTTP API error for ${email}:`, errJson.message || response.statusText);
+      }
+    } catch (resendErr) {
+      console.error(`⚠️ Resend HTTP dispatch failed:`, resendErr.message);
+    }
+  }
+
+  // METHOD 3: Standard SMTP (Gmail, custom relay) with strict 4s timeout
+  const transporter = getMailTransporter();
   if (transporter) {
     try {
-      await transporter.sendMail({
+      console.log(`📡 Attempting SMTP relay to ${process.env.SMTP_HOST || 'smtp.gmail.com'}...`);
+      const sendPromise = transporter.sendMail({
         from: fromEmail,
         to: email,
         subject: `Your DATIN Verification Code is: ${otp}`,
         text: `Your DATIN verification code is: ${otp}. It expires in 10 minutes.`,
         html: htmlContent
       });
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMTP connection timeout: outbound port blocked by hosting provider')), 4500)
+      );
+
+      await Promise.race([sendPromise, timeoutPromise]);
       console.log(`📧 Successfully dispatched SMTP email to ${email}`);
       return { sent: true, provider: 'smtp' };
     } catch (err) {
@@ -837,7 +914,7 @@ async function sendVerificationEmail(email, otp, fullName) {
     }
   }
 
-  // Fallback / Development logging: ensures smooth developer & testing experience
+  // METHOD 4: Fallback & Developer Terminal notice — NEVER freezes the UI!
   console.log(`\n=============================================================`);
   console.log(`🔐 [AUTH OTP DISPATCH] Target: ${email}`);
   console.log(`👉 6-DIGIT VERIFICATION CODE: >>> ${otp} <<< (10 min expiry)`);

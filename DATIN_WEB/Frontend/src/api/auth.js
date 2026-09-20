@@ -1,7 +1,10 @@
 import axios from 'axios';
 import { AUTH_BASE_URL } from './config';
 
-const api = axios.create({ baseURL: AUTH_BASE_URL });
+const api = axios.create({
+  baseURL: AUTH_BASE_URL,
+  timeout: 10000,
+});
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('datinToken');
