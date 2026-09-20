@@ -761,7 +761,10 @@ function getMailTransporter() {
       host,
       port,
       secure,
-      auth: { user, pass }
+      auth: { user, pass },
+      tls: {
+        rejectUnauthorized: false
+      }
     });
   }
   return null;
