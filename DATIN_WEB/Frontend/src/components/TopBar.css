@@ -1,0 +1,82 @@
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.topbar-hamburger,
+.topbar-avatar {
+  pointer-events: auto;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Enhanced Prominent Glass Shadow for Navbar Toggle */
+.topbar-hamburger {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.14),
+    0 3px 8px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  color: #1a1a2e;
+  transition: box-shadow 0.25s var(--ios-spring), background 0.2s ease, transform 0.2s var(--ios-spring);
+}
+
+.topbar-hamburger:hover {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* Enhanced Prominent Glass Shadow for Profile Avatar */
+.topbar-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  box-shadow:
+    0 10px 28px rgba(0, 0, 0, 0.14),
+    0 3px 8px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  color: #1a1a2e;
+  overflow: hidden;
+  transition: box-shadow 0.25s var(--ios-spring), background 0.2s ease, transform 0.2s var(--ios-spring);
+}
+
+.topbar-avatar:hover {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.topbar-avatar-initial {
+  font-family: var(--font-main);
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: #1a1a2e;
+}
