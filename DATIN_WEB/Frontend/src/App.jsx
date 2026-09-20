@@ -9,6 +9,7 @@ import AuthModal from './components/AuthModal';
 import SubmitReport from './components/SubmitReport';
 import ViewReports from './components/ViewReports';
 import DTNCStore from './components/DTNCStore';
+import DevPage from './components/DevPage';
 import { getStoredUser, logout, isAuthenticated, getToken } from './api/auth';
 import { AUTH_BASE_URL } from './api/config';
 import axios from 'axios';
@@ -142,6 +143,7 @@ const App = () => {
             <DTNCStore user={user} />
           </ProtectedRoute>
         } />
+        <Route path="/dev" element={<DevPage />} />
       </Routes>
     </div>
   );
