@@ -78,6 +78,212 @@
   transform: scale(1.05);
   color: var(--text-primary);
 }
+.auth-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.28rem 0.75rem;
+  background: rgba(0, 122, 255, 0.08);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+}
+
+.auth-radar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(0, 122, 255, 0.8);
+}
+
+.auth-alert-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  margin-bottom: 1.15rem;
+}
+
+.auth-alert-banner svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.auth-alert-banner.error {
+  background: rgba(255, 59, 48, 0.09);
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  color: #d70015;
+}
+
+.auth-alert-banner.info {
+  background: rgba(0, 122, 255, 0.08);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  color: #0066cc;
+}
+
+.auth-dev-otp-box {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(255, 149, 0, 0.12);
+  border: 1px dashed rgba(255, 149, 0, 0.45);
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #c97500;
+  margin-bottom: 1.15rem;
+  font-family: monospace;
+}
+
+.auth-dev-tag {
+  background: #ff9500;
+  color: #fff;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.form-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.form-label-row .form-label {
+  margin-bottom: 0;
+}
+
+.password-strength-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.password-meter-wrap {
+  margin-top: 0.45rem;
+}
+
+.password-meter-track {
+  width: 100%;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+}
+
+.password-meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.password-rules-hints {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.password-rules-hints span.rule-met {
+  color: #34C759;
+  font-weight: 500;
+}
+
+/* =========================================
+   OTP Digit Input Grid
+   ========================================= */
+
+.otp-input-section {
+  margin: 0.5rem 0 1.25rem;
+}
+
+.otp-digit-boxes {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.otp-single-digit {
+  width: 48px;
+  height: 56px;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  padding: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s var(--ios-spring);
+}
+
+.otp-single-digit:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2), 0 4px 14px rgba(0, 122, 255, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  transform: translateY(-2px);
+}
+
+.otp-single-digit.filled {
+  border-color: rgba(0, 122, 255, 0.5);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.otp-actions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  font-size: 0.82rem;
+}
+
+.otp-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0.3rem 0;
+  transition: color 0.2s ease;
+}
+
+.otp-back-btn:hover {
+  color: var(--text-primary);
+}
+
+.otp-resend-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.3rem 0;
+  transition: opacity 0.2s ease;
+}
+
+.otp-resend-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  color: var(--text-muted);
+}
 
 .auth-form {
   display: flex;
