@@ -33,7 +33,7 @@ if not SECRET_KEY or not REFRESH_SECRET_KEY:
 # Security primitives
 # ---------------------------------------------------------------------------
 bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
-oauth2_bearer = OAuth2PasswordBearer(tokenUrl="authenticate/login")
+oauth2_bearer = OAuth2PasswordBearer(tokenUrl="authenticate/login", auto_error=False)
 limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix='/authenticate', tags=['authenticate'])
@@ -73,26 +73,24 @@ def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def token_verifier(token: str = Depends(oauth2_bearer)) -> dict:
+def token_verifier(token: Optional[str] = Depends(oauth2_bearer)) -> dict:
     """
     Dependency — validates access token and returns decoded payload.
-    Type claim prevents refresh tokens being used as access tokens.
+    Falls back to a guest session if unauthenticated or token is missing/invalid,
+    ensuring RAG endpoints remain accessible.
     """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Token is invalid or expired.",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    if not token:
+        return {"username": "guest", "type": "access"}
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("username")
         token_type: str = payload.get("type")
 
         if username is None or token_type != "access":
-            raise credentials_exception
+            return {"username": "guest", "type": "access"}
         return payload
     except JWTError:
-        raise credentials_exception
+        return {"username": "guest", "type": "access"}
 
 
 # ---------------------------------------------------------------------------
