@@ -98,7 +98,7 @@ app.get('/rag-proxy/health', (req, res) => {
   const parsed = new URL(targetUrl);
   const transport = parsed.protocol === 'https:' ? https : http;
 
-  const proxyReq = transport.get(targetUrl, { timeout: 5000 }, (proxyRes) => {
+  const proxyReq = transport.get(targetUrl, { timeout: 5000, headers: { 'ngrok-skip-browser-warning': 'true' } }, (proxyRes) => {
     let body = '';
     proxyRes.on('data', (chunk) => { body += chunk; });
     proxyRes.on('end', () => {
@@ -127,6 +127,7 @@ function proxyRagRequest(targetUrl, req, res, isStream) {
     headers: {
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(bodyStr),
+      'ngrok-skip-browser-warning': 'true',
     },
     timeout: 120000,
   };
