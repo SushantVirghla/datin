@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const { transferDTNCTokens, getDTNCTokenInfo, distributeDTNCRewards } = require('./solanaTokenService');
 require('dotenv').config();
 
 const app = express();
@@ -255,11 +256,11 @@ async function distributeValidationRewards(reportId) {
     
     console.log(`💰 Distributing ${rewardPerValidator} DTNC to each of ${validatorWallets.length} validators`);
     
-    // Distribute rewards
-    const result = await callDTNCTransfer('distribute_rewards', [
-      JSON.stringify(validatorWallets),
+    // Distribute rewards natively
+    const result = await distributeDTNCRewards(
+      validatorWallets,
       rewardPerValidator.toString()
-    ]);
+    );
     
     if (result.success) {
       console.log('✅ Rewards distributed successfully');
@@ -602,37 +603,13 @@ app.post('/purchase-dtnc', authenticateToken, async (req, res) => {
     console.log(`   Price: ${price}`);
     console.log(`   Wallet: ${walletTrimmed}`);
     
-    // First check if Python script and dependencies are available
-    console.log('   🔍 Checking DTNC transfer system...');
-    try {
-      const testResult = await callDTNCTransfer('get_info', []);
-      if (!testResult.success) {
-        console.error('   ❌ DTNC transfer system not available:', testResult.error);
-        return res.status(503).json({
-          success: false,
-          message: 'Token transfer system is currently unavailable',
-          details: 'Please ensure Python dependencies are installed (pip3 install solana solders)',
-          error: testResult.error
-        });
-      }
-      console.log('   ✅ DTNC transfer system check passed');
-    } catch (error) {
-      console.error('   ❌ DTNC system check failed:', error.message);
-      return res.status(503).json({
-        success: false,
-        message: 'Token transfer system check failed',
-        details: 'Python script or dependencies may be missing',
-        error: error.message
-      });
-    }
-    
-    // Call Python script to transfer DTNC tokens
-    console.log('   📤 Calling DTNC transfer script...');
-    const result = await callDTNCTransfer('transfer', [
+    // Call native Solana Token-2022 transfer service
+    console.log('   📤 Calling native Solana Token-2022 transfer service...');
+    const result = await transferDTNCTokens(
       walletTrimmed,
-      amount.toString(),
+      parseInt(amount, 10),
       'purchase'
-    ]);
+    );
     
     console.log('   📥 DTNC transfer result:', JSON.stringify(result, null, 2));
     
@@ -1556,11 +1533,11 @@ app.post('/complete-reevaluation/:reevaluationId', authenticateToken, async (req
       console.log('✅ Challenger was correct! Distributing stake + rewards...');
       
       // Transfer reward to challenger
-      await callDTNCTransfer('transfer', [
+      await transferDTNCTokens(
         reeval.walletAddress,
         (reeval.stakeAmount + parseInt(report.reward)).toString(),
         'reevaluation_reward'
-      ]);
+      );
       
       reeval.challengeResult = 'success';
       reeval.rewardDistributed = true;
@@ -1580,17 +1557,17 @@ app.post('/complete-reevaluation/:reevaluationId', authenticateToken, async (req
       const stakePerValidator = Math.floor(reeval.stakeAmount / (validatorWallets.length + 1));
       
       // Transfer to original submitter
-      await callDTNCTransfer('transfer', [
+      await transferDTNCTokens(
         report.owner,
         stakePerValidator.toString(),
         'reevaluation_penalty'
-      ]);
+      );
       
       // Transfer to validators
-      await callDTNCTransfer('distribute_rewards', [
-        JSON.stringify(validatorWallets),
+      await distributeDTNCRewards(
+        validatorWallets,
         stakePerValidator.toString()
-      ]);
+      );
       
       reeval.challengeResult = 'failed';
     }
@@ -1918,7 +1895,7 @@ app.get('/transaction-status/:txId', (req, res) => {
 
 app.get('/dtnc-info', async (req, res) => {
   try {
-    const result = await callDTNCTransfer('get_decimals', []);
+    const result = await getDTNCTokenInfo();
     res.json(result);
   } catch (error) {
     res.status(500).json({

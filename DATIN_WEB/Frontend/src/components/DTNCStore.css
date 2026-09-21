@@ -80,6 +80,31 @@
   white-space: nowrap;
 }
 
+.store-wallet-guide-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.85rem;
+  margin-left: 0.5rem;
+  background: rgba(0, 122, 255, 0.08);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  border-radius: 999px;
+  color: var(--accent);
+  font-family: var(--font-main);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s var(--ios-spring);
+  white-space: nowrap;
+}
+
+.store-wallet-guide-pill-btn:hover {
+  background: rgba(0, 122, 255, 0.16);
+  border-color: rgba(0, 122, 255, 0.45);
+  transform: translateY(-1px);
+}
+
 /* =========================================
    2. Floating Bottom Dock (Tiers & Checkout)
    ========================================= */
@@ -344,8 +369,412 @@
   gap: 0.5rem;
 }
 
+/* Wallet Hint Row inside Checkout */
+.store-wallet-hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  background: rgba(0, 122, 255, 0.06);
+  border: 1px solid rgba(0, 122, 255, 0.16);
+  border-radius: 12px;
+  font-size: 0.78rem;
+}
+
+.store-wallet-hint-left {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-secondary);
+}
+
+.store-wallet-hint-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.store-wallet-hint-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.store-wallet-hint-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-family: var(--font-main);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.store-wallet-hint-btn:hover {
+  background: rgba(0, 122, 255, 0.12);
+  text-decoration: underline;
+}
+
 /* =========================================
-   4. Receipt Modal
+   4. Supported Wallets & Setup Guide Modal
+   ========================================= */
+
+.store-guide-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(10, 14, 23, 0.45);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 600;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.store-guide-modal {
+  width: 100%;
+  max-width: 780px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.88) !important;
+  backdrop-filter: blur(36px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(36px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  border-radius: 28px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18) !important;
+  padding: 2rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  text-align: left;
+}
+
+.store-guide-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.store-guide-badge {
+  display: inline-block;
+  padding: 0.25rem 0.65rem;
+  background: rgba(0, 122, 255, 0.1);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.45rem;
+}
+
+.store-guide-title {
+  font-family: var(--font-brand);
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.35rem 0;
+  letter-spacing: -0.02em;
+}
+
+.store-guide-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.store-guide-close-btn {
+  background: rgba(0, 0, 0, 0.06);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.store-guide-close-btn:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--text-primary);
+  transform: scale(1.08);
+}
+
+/* Crucial Notice Card */
+.store-guide-notice-card {
+  display: flex;
+  gap: 0.85rem;
+  padding: 0.95rem 1.15rem;
+  background: rgba(255, 149, 0, 0.1);
+  border: 1px solid rgba(255, 149, 0, 0.35);
+  border-radius: 16px;
+  align-items: flex-start;
+}
+
+.store-notice-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.store-notice-content strong {
+  display: block;
+  font-size: 0.88rem;
+  color: #c96b00;
+  margin-bottom: 0.25rem;
+}
+
+.store-notice-content p {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Wallets Grid */
+.store-wallets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.store-wallet-card {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(255, 255, 255, 0.75);
+  border-radius: 20px;
+  padding: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.85rem;
+  transition: transform 0.22s var(--ios-spring), box-shadow 0.22s ease;
+}
+
+.store-wallet-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+}
+
+.store-wallet-card.is-recommended {
+  border-color: rgba(0, 122, 255, 0.45);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(240, 247, 255, 0.85) 100%);
+  box-shadow: 0 4px 18px rgba(0, 122, 255, 0.08);
+}
+
+.store-wallet-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.store-wallet-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.store-wallet-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.store-wallet-name {
+  font-family: var(--font-brand);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.store-wallet-tagline {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  display: block;
+}
+
+.store-wallet-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-muted);
+}
+
+.store-wallet-badge.badge-rec {
+  background: rgba(0, 122, 255, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(0, 122, 255, 0.3);
+}
+
+.store-wallet-steps {
+  background: rgba(0, 0, 0, 0.025);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  font-size: 0.76rem;
+}
+
+.store-wallet-steps-title {
+  display: block;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.4rem;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.store-wallet-steps ol {
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.store-wallet-steps li {
+  margin-bottom: 0.25rem;
+}
+
+.store-wallet-steps li:last-child {
+  margin-bottom: 0;
+}
+
+.store-wallet-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1rem;
+  background: rgba(0, 122, 255, 0.09);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  border-radius: 12px;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s var(--ios-spring);
+}
+
+.store-wallet-link-btn:hover {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+/* Token Details & Copy Card */
+.store-token-details-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.store-token-details-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow: hidden;
+}
+
+.store-token-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.store-token-mint {
+  font-family: monospace;
+  font-size: 0.84rem;
+  color: var(--text-primary);
+  word-break: break-all;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+}
+
+.store-token-details-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.store-token-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(0, 122, 255, 0.1);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  border-radius: 10px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.store-token-copy-btn:hover {
+  background: rgba(0, 122, 255, 0.2);
+}
+
+.store-token-explorer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.store-token-explorer-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.store-guide-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.store-guide-done-btn {
+  padding: 0.75rem 1.6rem;
+  font-size: 0.9rem;
+}
+
+/* =========================================
+   5. Receipt Modal
    ========================================= */
 
 .store-receipt-overlay {
