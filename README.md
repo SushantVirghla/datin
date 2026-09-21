@@ -71,44 +71,5 @@
 
 ---
 
-## 🏛️ System Architecture
-
-```mermaid
-graph TD
-    subgraph Client ["Client (React 19 + Vite)"]
-        UI["Apple Glassmorphism UI"]
-        Spline["3D Humanoid Sentinel"]
-        Wallet["Phantom / Solana Wallet"]
-    end
-
-    subgraph NodeBackend ["Node.js API & Consensus Engine"]
-        Auth["Anti-Abuse Auth & OTP"]
-        Escrow["DTNC Pre-Flight Balance Checker"]
-        Ledger["Decentralized Threat Ledger"]
-        CryptoStorage[("AES-256-CBC Encrypted Store")]
-    end
-
-    subgraph Blockchain ["Solana Devnet (Token-2022)"]
-        Treasury["Treasury Vault"]
-        Mint["DTNC Mint Authority"]
-        ATA["Validator Token Accounts"]
-    end
-
-    subgraph AI_Engine ["AI & Vector Intelligence (Docker / Python)"]
-        RAG["FastAPI Stream RAG Router"]
-        Model["SentenceTransformer (1024-dim)"]
-        Pinecone[("Pinecone Vector Database")]
-        Ingest["ingest_verified_reports.py"]
-    end
-
-    UI -->|Submits Threat Dispatch| Escrow
-    Wallet -->|Verifies ATA Balance| Escrow
-    Escrow -->|Stores Encrypted| CryptoStorage
-    UI -->|Validator Consensus Quorum (Min 3)| Ledger
-    Ledger -->|Trigger Reward Distribution| Treasury
-    Treasury -->|Transfer DTNC Tokens| ATA
-    Ledger -->|Trigger Ingestion| Ingest
-    Ingest -->|Generate Normalized Embedding| Model
-    Model -->|Upsert Threat Vectors| Pinecone
-    UI -->|Query Security Findings| RAG
+Findings| RAG
     RAG -->|Semantic Search| Pinecone
