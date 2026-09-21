@@ -1151,3 +1151,238 @@
     width: 100%;
   }
 }
+
+/* =========================================
+   6. Switch Phantom Account Modal Styles
+   ========================================= */
+
+.store-switch-modal {
+  width: 100%;
+  max-width: 520px;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  border-radius: 24px;
+}
+
+.store-switch-badge-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(0, 122, 255, 0.12);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  color: var(--accent);
+}
+
+.store-switch-account-card {
+  padding: 1rem 1.15rem;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.store-account-top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.store-account-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34c759;
+  box-shadow: 0 0 8px rgba(52, 199, 89, 0.6);
+}
+
+.store-account-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.store-account-addr {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.04);
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  word-break: break-all;
+}
+
+.store-account-stats {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.store-account-stats strong {
+  color: var(--accent);
+}
+
+.store-switch-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 122, 255, 0.05);
+  border: 1px solid rgba(0, 122, 255, 0.15);
+  border-radius: 14px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.store-switch-note-icon {
+  font-size: 1.1rem;
+}
+
+.store-switch-steps-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.store-switch-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 14px;
+}
+
+.store-step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.store-step-text strong {
+  display: block;
+  font-size: 0.86rem;
+  color: var(--text-primary);
+  margin-bottom: 0.15rem;
+}
+
+.store-step-text p {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.store-switch-listening-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.65rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.store-switch-radar-ring {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #34c759;
+  position: relative;
+}
+
+.store-switch-radar-ring::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  border: 2px solid #34c759;
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+  opacity: 0.75;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.store-switch-success-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.15rem 1.35rem;
+  background: rgba(52, 199, 89, 0.12);
+  border: 1px solid rgba(52, 199, 89, 0.35);
+  border-radius: 16px;
+}
+
+.store-switch-success-check {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #34c759;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.store-switch-success-pill strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #198038;
+}
+
+.store-switch-success-sub {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.store-switch-disconnect-action {
+  padding: 0.75rem 1.25rem;
+  font-size: 0.86rem;
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  color: #ff3b30;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.store-switch-disconnect-action:hover {
+  background: rgba(255, 59, 48, 0.18);
+  border-color: rgba(255, 59, 48, 0.45);
+}
+
+.store-switch-done-action {
+  padding: 0.75rem 1.75rem;
+  font-size: 0.88rem;
+}

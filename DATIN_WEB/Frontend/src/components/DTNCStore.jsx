@@ -97,6 +97,11 @@ const DTNCStore = ({ user: propUser }) => {
   const [phantomConnected, setPhantomConnected] = useState(false);
   const [solBalance, setSolBalance] = useState(null);
 
+  // Switch Account Modal State
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [switchSuccessAccount, setSwitchSuccessAccount] = useState(null);
+  const [manualDisconnected, setManualDisconnected] = useState(false);
+
   const hover = useHoverSound();
   const click = useClickSound();
   const user = propUser || getStoredUser();
@@ -110,49 +115,90 @@ const DTNCStore = ({ user: propUser }) => {
     } catch (_) {}
   };
 
-  // Eagerly check if Phantom is already connected/trusted
+  // Handler when Phantom reports an account update
+  const handleAccountUpdate = (publicKey) => {
+    if (publicKey) {
+      const pubkeyStr = typeof publicKey === 'string' ? publicKey : publicKey.toString();
+      setPhantomAccount((prev) => {
+        if (prev && prev !== pubkeyStr) {
+          setSwitchSuccessAccount(pubkeyStr);
+          setTimeout(() => {
+            setSwitchSuccessAccount(null);
+            setShowSwitchModal(false);
+          }, 2200);
+        }
+        return pubkeyStr;
+      });
+      setPhantomConnected(true);
+      setWalletAddress(pubkeyStr);
+      setError('');
+      refreshSolBalance(pubkeyStr);
+    } else {
+      setPhantomAccount(null);
+      setPhantomConnected(false);
+      setSolBalance(null);
+      setWalletAddress('');
+    }
+  };
+
+  // Eagerly check if Phantom is already connected/trusted on initial mount
   useEffect(() => {
-    if (window.solana && window.solana.isPhantom) {
+    if (window.solana && window.solana.isPhantom && !manualDisconnected) {
       window.solana
         .connect({ onlyIfTrusted: true })
         .then((resp) => {
-          const pubkey = resp.publicKey.toString();
-          setPhantomAccount(pubkey);
-          setPhantomConnected(true);
-          setWalletAddress(pubkey);
-          refreshSolBalance(pubkey);
+          handleAccountUpdate(resp.publicKey);
         })
         .catch(() => {});
     }
-  }, []);
+  }, [manualDisconnected]);
 
-  // Listen to Phantom account switch events
+  // Listen to Phantom account switch events (accountChanged & accountsChanged) & tab focus
   useEffect(() => {
-    if (window.solana && window.solana.isPhantom) {
-      const handleAccountChanged = async (publicKey) => {
-        if (publicKey) {
-          const pubkeyStr = publicKey.toString();
-          setPhantomAccount(pubkeyStr);
-          setPhantomConnected(true);
-          setWalletAddress(pubkeyStr);
-          setError('');
-          refreshSolBalance(pubkeyStr);
-        } else {
-          setPhantomAccount(null);
-          setPhantomConnected(false);
-          setSolBalance(null);
-          setWalletAddress('');
-        }
-      };
+    if (!window.solana || !window.solana.isPhantom) return;
 
-      window.solana.on('accountChanged', handleAccountChanged);
-      return () => {
-        if (window.solana.removeListener) {
-          window.solana.removeListener('accountChanged', handleAccountChanged);
-        }
-      };
+    const onAccountChanged = (pubkey) => {
+      handleAccountUpdate(pubkey);
+    };
+
+    const onAccountsChanged = (accounts) => {
+      if (Array.isArray(accounts) && accounts.length > 0) {
+        handleAccountUpdate(accounts[0]);
+      } else if (!accounts || accounts.length === 0) {
+        handleAccountUpdate(null);
+      }
+    };
+
+    const onDisconnect = () => {
+      handleAccountUpdate(null);
+    };
+
+    window.solana.on('accountChanged', onAccountChanged);
+    if (window.solana.on) {
+      window.solana.on('accountsChanged', onAccountsChanged);
+      window.solana.on('disconnect', onDisconnect);
     }
-  }, []);
+
+    // Instantly detect account change when user clicks back into tab after changing account in Phantom extension
+    const handleTabFocus = () => {
+      if (window.solana && window.solana.isPhantom && window.solana.publicKey && !manualDisconnected) {
+        const currentPubkey = window.solana.publicKey.toString();
+        if (currentPubkey !== phantomAccount) {
+          handleAccountUpdate(currentPubkey);
+        }
+      }
+    };
+    window.addEventListener('focus', handleTabFocus);
+
+    return () => {
+      if (window.solana.removeListener) {
+        window.solana.removeListener('accountChanged', onAccountChanged);
+        window.solana.removeListener('accountsChanged', onAccountsChanged);
+        window.solana.removeListener('disconnect', onDisconnect);
+      }
+      window.removeEventListener('focus', handleTabFocus);
+    };
+  }, [phantomAccount, manualDisconnected]);
 
   // Connect Phantom
   const handleConnectPhantom = async () => {
@@ -164,13 +210,9 @@ const DTNCStore = ({ user: propUser }) => {
     }
 
     try {
+      setManualDisconnected(false);
       const resp = await window.solana.connect({ onlyIfTrusted: false });
-      const pubkey = resp.publicKey.toString();
-      setPhantomAccount(pubkey);
-      setPhantomConnected(true);
-      setWalletAddress(pubkey);
-      setError('');
-      refreshSolBalance(pubkey);
+      handleAccountUpdate(resp.publicKey);
     } catch (err) {
       console.error('Phantom connect error:', err);
       setError(err.message || 'Failed to connect Phantom wallet');
@@ -180,6 +222,7 @@ const DTNCStore = ({ user: propUser }) => {
   // Disconnect Phantom
   const handleDisconnectPhantom = async () => {
     click.onClick();
+    setManualDisconnected(true);
     try {
       if (window.solana) {
         await window.solana.disconnect();
@@ -190,6 +233,12 @@ const DTNCStore = ({ user: propUser }) => {
     setSolBalance(null);
     setWalletAddress('');
     setError('');
+  };
+
+  // Open Switch Account Modal
+  const handleOpenSwitchModal = () => {
+    click.onClick();
+    setShowSwitchModal(true);
   };
 
   const handleSelectTier = (tier) => {
@@ -373,7 +422,7 @@ const DTNCStore = ({ user: propUser }) => {
                   <button
                     type="button"
                     className="store-phantom-switch-btn"
-                    onClick={handleConnectPhantom}
+                    onClick={handleOpenSwitchModal}
                     onMouseEnter={hover.onMouseEnter}
                     title="Switch Account in Phantom"
                   >
@@ -745,6 +794,143 @@ const DTNCStore = ({ user: propUser }) => {
                   onMouseEnter={hover.onMouseEnter}
                 >
                   Understood & Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 5. Switch Phantom Account Modal */}
+      <AnimatePresence>
+        {showSwitchModal && (
+          <motion.div
+            className="store-guide-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowSwitchModal(false)}
+          >
+            <motion.div
+              className="store-switch-modal glass-card"
+              initial={{ scale: 0.92, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.92, y: 20, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="store-guide-header">
+                <div className="store-guide-title-group">
+                  <div className="store-switch-badge-icon">⇄</div>
+                  <div>
+                    <h2 className="store-guide-title">Switch Phantom Account</h2>
+                    <p className="store-guide-subtitle">
+                      Change the active Solana wallet receiving & paying for DTNC
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="store-guide-close-btn"
+                  onClick={() => {
+                    click.onClick();
+                    setShowSwitchModal(false);
+                  }}
+                  onMouseEnter={hover.onMouseEnter}
+                  aria-label="Close"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Active Account Card */}
+              {phantomAccount && (
+                <div className="store-switch-account-card">
+                  <div className="store-account-top">
+                    <span className="store-account-live-dot"></span>
+                    <span className="store-account-label">Currently Connected</span>
+                  </div>
+                  <div className="store-account-addr">{phantomAccount}</div>
+                  <div className="store-account-stats">
+                    Devnet Balance: <strong>{solBalance !== null ? `${solBalance.toFixed(3)} SOL` : 'Fetching...'}</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Live Switch Feedback */}
+              {switchSuccessAccount ? (
+                <div className="store-switch-success-pill">
+                  <span className="store-switch-success-check">✓</span>
+                  <div>
+                    <strong>Switched Successfully!</strong>
+                    <p>Connected to {switchSuccessAccount.slice(0, 6)}...{switchSuccessAccount.slice(-4)}</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="store-switch-note">
+                    <span className="store-switch-note-icon">💡</span>
+                    <p>
+                      Solana extensions manage accounts internally. To switch between your wallets (e.g. Account 1 and Account 2):
+                    </p>
+                  </div>
+
+                  <div className="store-switch-steps-box">
+                    <div className="store-switch-step-row">
+                      <div className="store-step-num">1</div>
+                      <div className="store-step-text">
+                        <strong>Open Phantom Toolbar Extension</strong>
+                        <p>Click the purple Phantom ghost icon (👻) in your browser’s extension bar.</p>
+                      </div>
+                    </div>
+                    <div className="store-switch-step-row">
+                      <div className="store-step-num">2</div>
+                      <div className="store-step-text">
+                        <strong>Click Account Name at Top</strong>
+                        <p>Click the dropdown at the very top of Phantom (e.g., <em>Account 2</em>).</p>
+                      </div>
+                    </div>
+                    <div className="store-switch-step-row">
+                      <div className="store-step-num">3</div>
+                      <div className="store-step-text">
+                        <strong>Select Desired Account</strong>
+                        <p>Choose Account 1 or Account 2. This window detects it instantly!</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="store-switch-listening-row">
+                    <span className="store-switch-radar-ring"></span>
+                    <span>Waiting for account selection in Phantom...</span>
+                  </div>
+                </>
+              )}
+
+              <div className="store-guide-footer">
+                <button
+                  type="button"
+                  className="store-switch-disconnect-action"
+                  onClick={() => {
+                    handleDisconnectPhantom();
+                    setShowSwitchModal(false);
+                  }}
+                  onMouseEnter={hover.onMouseEnter}
+                >
+                  Disconnect Wallet
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary store-switch-done-action"
+                  onClick={() => {
+                    click.onClick();
+                    setShowSwitchModal(false);
+                  }}
+                  onMouseEnter={hover.onMouseEnter}
+                >
+                  Got It
                 </button>
               </div>
             </motion.div>
