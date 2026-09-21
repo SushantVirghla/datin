@@ -150,6 +150,83 @@
   color: var(--text-secondary);
 }
 
+.store-phantom-connected-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.store-phantom-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(0, 122, 255, 0.08);
+  border: 1px solid rgba(0, 122, 255, 0.25);
+  border-radius: 999px;
+  font-family: var(--font-main);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s var(--ios-spring);
+}
+
+.store-phantom-switch-btn:hover {
+  background: rgba(0, 122, 255, 0.18);
+  border-color: rgba(0, 122, 255, 0.45);
+  transform: translateY(-1px);
+}
+
+.store-phantom-disconnect-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  border-radius: 50%;
+  font-family: var(--font-main);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #ff3b30;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.store-phantom-disconnect-btn:hover {
+  background: rgba(255, 59, 48, 0.2);
+  border-color: rgba(255, 59, 48, 0.5);
+  transform: scale(1.08);
+}
+
+.store-wallet-locked-badge {
+  position: absolute;
+  right: 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #198038;
+  background: rgba(52, 199, 89, 0.12);
+  border: 1px solid rgba(52, 199, 89, 0.3);
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  pointer-events: none;
+}
+
+.dock-tier-sub-row {
+  margin-top: 0.25rem;
+}
+
+.dock-tier-sub {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
 .store-wallet-guide-pill-btn {
   display: inline-flex;
   align-items: center;

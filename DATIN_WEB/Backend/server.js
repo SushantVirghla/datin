@@ -8,7 +8,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const { transferDTNCTokens, getDTNCTokenInfo, distributeDTNCRewards } = require('./solanaTokenService');
+const { transferDTNCTokens, getDTNCTokenInfo, distributeDTNCRewards, verifySolPayment } = require('./solanaTokenService');
 require('dotenv').config();
 
 const app = express();
@@ -603,6 +603,20 @@ app.post('/purchase-dtnc', authenticateToken, async (req, res) => {
     console.log(`   Price: ${price}`);
     console.log(`   Wallet: ${walletTrimmed}`);
     
+    // Cryptographically verify on-chain SOL payment to prevent unpaid / spoofed tokens
+    console.log('   🔍 Verifying on-chain SOL payment...');
+    const solPaymentSignature = req.body.solPaymentSignature;
+    const paymentVerification = await verifySolPayment(solPaymentSignature, price, walletTrimmed);
+    if (!paymentVerification.valid) {
+      console.warn('   ❌ Payment verification failed:', paymentVerification.error);
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification failed: No valid SOL payment to Treasury found on Solana Devnet.',
+        error: paymentVerification.error,
+      });
+    }
+    console.log(`   ✅ Payment verified! Buyer paid ${paymentVerification.paidSol} SOL.`);
+
     // Call native Solana Token-2022 transfer service
     console.log('   📤 Calling native Solana Token-2022 transfer service...');
     const result = await transferDTNCTokens(

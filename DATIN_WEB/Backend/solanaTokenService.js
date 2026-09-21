@@ -287,12 +287,84 @@ async function distributeDTNCRewards(validatorWallets, amountPerValidator) {
   };
 }
 
+// In-memory set of used payment signatures for replay prevention
+const usedPaymentSignatures = new Set();
+
+/**
+ * Cryptographically verify that buyer paid required SOL to Treasury on Solana Devnet
+ */
+async function verifySolPayment(signature, expectedAmountSol, buyerAddress) {
+  if (!signature) {
+    return { valid: false, error: 'No SOL payment transaction signature provided.' };
+  }
+
+  if (usedPaymentSignatures.has(signature)) {
+    return { valid: false, error: 'This payment transaction has already been claimed (replay attack prevented).' };
+  }
+
+  try {
+    const connection = getSolanaConnection();
+    const treasuryPubkeyStr = getTreasuryKeypair().publicKey.toBase58();
+
+    const tx = await connection.getParsedTransaction(signature, {
+      maxSupportedTransactionVersion: 0,
+      commitment: 'confirmed',
+    });
+
+    if (!tx) {
+      return { valid: false, error: 'Payment transaction was not found or has not confirmed yet on Solana Devnet.' };
+    }
+
+    if (tx.meta?.err) {
+      return { valid: false, error: `Payment transaction failed on-chain: ${JSON.stringify(tx.meta.err)}` };
+    }
+
+    // Minimum acceptable lamports (allow 0.001 SOL buffer for fee rounding)
+    const expectedNum = parseFloat(expectedAmountSol);
+    const minLamports = Math.round((expectedNum - 0.001) * web3.LAMPORTS_PER_SOL);
+    let paidLamports = 0;
+    let foundTransfer = false;
+
+    for (const ix of tx.transaction.message.instructions) {
+      if (ix.program === 'system' && ix.parsed?.type === 'transfer') {
+        const info = ix.parsed.info;
+        if (info.destination === treasuryPubkeyStr) {
+          paidLamports += info.lamports;
+          foundTransfer = true;
+        }
+      }
+    }
+
+    if (!foundTransfer || paidLamports < minLamports) {
+      return {
+        valid: false,
+        error: `Insufficient SOL received. Expected ${expectedNum} SOL to treasury ${treasuryPubkeyStr}, but received ${paidLamports / web3.LAMPORTS_PER_SOL} SOL.`,
+      };
+    }
+
+    // Mark signature as used
+    usedPaymentSignatures.add(signature);
+    return {
+      valid: true,
+      paidLamports,
+      paidSol: paidLamports / web3.LAMPORTS_PER_SOL,
+    };
+  } catch (err) {
+    return {
+      valid: false,
+      error: `Error verifying SOL payment on blockchain: ${err.message}`,
+    };
+  }
+}
+
 module.exports = {
   transferDTNCTokens,
   getDTNCTokenInfo,
   distributeDTNCRewards,
+  verifySolPayment,
   DTNC_TOKEN_MINT,
   DTNC_DECIMALS,
   TOKEN_2022_PROGRAM_ID,
   getTreasuryKeypair,
 };
+

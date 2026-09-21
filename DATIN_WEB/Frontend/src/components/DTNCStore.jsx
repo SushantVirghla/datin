@@ -14,11 +14,12 @@ import { useHoverSound, useClickSound } from '../hooks/useHoverSound';
 import R4XScene from './R4XScene';
 import './DTNCStore.css';
 
+// Realistic, accessible Web3 utility token pricing
 const TIERS = [
-  { amount: 100, price: '0.5 SOL', priceNum: 0.5, popular: false },
-  { amount: 500, price: '2.0 SOL', priceNum: 2.0, popular: true },
-  { amount: 1000, price: '3.5 SOL', priceNum: 3.5, popular: false },
-  { amount: 5000, price: '15.0 SOL', priceNum: 15.0, popular: false },
+  { amount: 50, price: '0.025 SOL', priceNum: 0.025, popular: false, subtitle: 'Starter Allocation' },
+  { amount: 100, price: '0.05 SOL', priceNum: 0.05, popular: true, subtitle: 'Node Validator' },
+  { amount: 250, price: '0.12 SOL', priceNum: 0.12, popular: false, subtitle: 'Threat Analyst' },
+  { amount: 500, price: '0.22 SOL', priceNum: 0.22, popular: false, subtitle: 'Enterprise Node' },
 ];
 
 const TOKEN_MINT_ADDRESS = 'mntHo2pnnFBctoQ2AozsnZeCfjyk2ehDzwAkmFnr4s3';
@@ -37,7 +38,7 @@ const SUPPORTED_WALLETS = [
       'Download & install Phantom from phantom.app',
       'Open Settings (⚙️ icon in bottom right) → Developer Settings',
       'Toggle ON "Testnet Mode" and select "Solana Devnet"',
-      'Connect Phantom or paste your address below to receive DTNC',
+      'Connect Phantom to pay with Devnet SOL and receive DTNC directly',
     ],
   },
   {
@@ -100,39 +101,65 @@ const DTNCStore = ({ user: propUser }) => {
   const click = useClickSound();
   const user = propUser || getStoredUser();
 
-  // Auto-fill from user profile
-  useEffect(() => {
-    if (user?.walletAddress && !walletAddress && !phantomAccount) {
-      setWalletAddress(user.walletAddress);
-    }
-  }, [user]);
+  // Helper to fetch balance for an account
+  const refreshSolBalance = async (pubkey) => {
+    try {
+      const conn = new Connection(DEVNET_RPC, 'confirmed');
+      const bal = await conn.getBalance(new PublicKey(pubkey));
+      setSolBalance(bal / LAMPORTS_PER_SOL);
+    } catch (_) {}
+  };
 
   // Eagerly check if Phantom is already connected/trusted
   useEffect(() => {
     if (window.solana && window.solana.isPhantom) {
       window.solana
         .connect({ onlyIfTrusted: true })
-        .then(async (resp) => {
+        .then((resp) => {
           const pubkey = resp.publicKey.toString();
           setPhantomAccount(pubkey);
           setPhantomConnected(true);
           setWalletAddress(pubkey);
-
-          try {
-            const conn = new Connection(DEVNET_RPC, 'confirmed');
-            const bal = await conn.getBalance(resp.publicKey);
-            setSolBalance(bal / LAMPORTS_PER_SOL);
-          } catch (_) {}
+          refreshSolBalance(pubkey);
         })
         .catch(() => {});
     }
   }, []);
 
+  // Listen to Phantom account switch events
+  useEffect(() => {
+    if (window.solana && window.solana.isPhantom) {
+      const handleAccountChanged = async (publicKey) => {
+        if (publicKey) {
+          const pubkeyStr = publicKey.toString();
+          setPhantomAccount(pubkeyStr);
+          setPhantomConnected(true);
+          setWalletAddress(pubkeyStr);
+          setError('');
+          refreshSolBalance(pubkeyStr);
+        } else {
+          setPhantomAccount(null);
+          setPhantomConnected(false);
+          setSolBalance(null);
+          setWalletAddress('');
+        }
+      };
+
+      window.solana.on('accountChanged', handleAccountChanged);
+      return () => {
+        if (window.solana.removeListener) {
+          window.solana.removeListener('accountChanged', handleAccountChanged);
+        }
+      };
+    }
+  }, []);
+
+  // Connect Phantom
   const handleConnectPhantom = async () => {
     click.onClick();
     if (!window.solana || !window.solana.isPhantom) {
       setShowWalletGuide(true);
-      setError('Phantom wallet is not installed in your browser. Please install Phantom or enter your address manually.');
+      setError('Phantom wallet is not installed in your browser. Please install Phantom to connect.');
       return;
     }
 
@@ -143,19 +170,26 @@ const DTNCStore = ({ user: propUser }) => {
       setPhantomConnected(true);
       setWalletAddress(pubkey);
       setError('');
-
-      // Fetch SOL balance on devnet
-      try {
-        const conn = new Connection(DEVNET_RPC, 'confirmed');
-        const bal = await conn.getBalance(resp.publicKey);
-        setSolBalance(bal / LAMPORTS_PER_SOL);
-      } catch (balErr) {
-        console.warn('Could not fetch SOL balance:', balErr);
-      }
+      refreshSolBalance(pubkey);
     } catch (err) {
       console.error('Phantom connect error:', err);
       setError(err.message || 'Failed to connect Phantom wallet');
     }
+  };
+
+  // Disconnect Phantom
+  const handleDisconnectPhantom = async () => {
+    click.onClick();
+    try {
+      if (window.solana) {
+        await window.solana.disconnect();
+      }
+    } catch (_) {}
+    setPhantomAccount(null);
+    setPhantomConnected(false);
+    setSolBalance(null);
+    setWalletAddress('');
+    setError('');
   };
 
   const handleSelectTier = (tier) => {
@@ -185,12 +219,23 @@ const DTNCStore = ({ user: propUser }) => {
 
     const trimmedWallet = walletAddress.trim();
     if (!trimmedWallet) {
-      setError('Please enter your Solana wallet address');
+      setError('Please connect your Phantom wallet to purchase');
       return;
     }
 
     if (trimmedWallet.length < 32 || trimmedWallet.length > 44) {
-      setError('Invalid Solana wallet address (must be 32-44 characters)');
+      setError('Invalid Solana wallet address');
+      return;
+    }
+
+    // Strict validation: Require Phantom connection to prevent cross-account unpaid exploits
+    if (!phantomConnected || !phantomAccount) {
+      setError('Please connect your Phantom wallet using the button above to pay with SOL.');
+      return;
+    }
+
+    if (trimmedWallet !== phantomAccount) {
+      setError('Receiving wallet must match the connected Phantom wallet. To use another wallet, switch accounts in Phantom.');
       return;
     }
 
@@ -200,56 +245,48 @@ const DTNCStore = ({ user: propUser }) => {
     let solPaymentSignature = null;
 
     try {
-      // 1. If Phantom is connected to this wallet, initiate real SOL deduction
-      if (phantomConnected && phantomAccount && trimmedWallet === phantomAccount) {
-        setLoadingStep(`Requesting ${selectedTier.price} payment in Phantom...`);
+      // 1. Mandatory on-chain SOL deduction via Phantom
+      setLoadingStep(`Please approve the ${selectedTier.price} payment in Phantom...`);
 
-        try {
-          const conn = new Connection(DEVNET_RPC, 'confirmed');
-          const buyerPubkey = new PublicKey(phantomAccount);
-          const treasuryPubkey = new PublicKey(TREASURY_WALLET_ADDRESS);
+      const conn = new Connection(DEVNET_RPC, 'confirmed');
+      const buyerPubkey = new PublicKey(phantomAccount);
+      const treasuryPubkey = new PublicKey(TREASURY_WALLET_ADDRESS);
 
-          const lamports = Math.round(selectedTier.priceNum * LAMPORTS_PER_SOL);
+      const lamports = Math.round(selectedTier.priceNum * LAMPORTS_PER_SOL);
 
-          // Check balance before asking
-          const currentLamports = await conn.getBalance(buyerPubkey);
-          if (currentLamports < lamports) {
-            const currentSol = (currentLamports / LAMPORTS_PER_SOL).toFixed(3);
-            throw new Error(
-              `Insufficient Devnet SOL in Phantom (${currentSol} SOL). You need ${selectedTier.price}. Get free Devnet SOL at faucet.solana.com.`
-            );
-          }
-
-          const tx = new Transaction().add(
-            SystemProgram.transfer({
-              fromPubkey: buyerPubkey,
-              toPubkey: treasuryPubkey,
-              lamports,
-            })
-          );
-
-          const { blockhash } = await conn.getLatestBlockhash('confirmed');
-          tx.recentBlockhash = blockhash;
-          tx.feePayer = buyerPubkey;
-
-          // Pops up Phantom dialog
-          const { signature } = await window.solana.signAndSendTransaction(tx);
-          solPaymentSignature = signature;
-
-          setLoadingStep('Confirming SOL payment on Solana Devnet...');
-          await conn.confirmTransaction(signature, 'confirmed');
-
-          // Refresh SOL balance
-          const newBal = await conn.getBalance(buyerPubkey);
-          setSolBalance(newBal / LAMPORTS_PER_SOL);
-        } catch (phantomErr) {
-          console.error('Phantom payment error:', phantomErr);
-          throw new Error(phantomErr.message || 'Phantom SOL payment failed or was rejected');
-        }
+      // Check balance before asking
+      const currentLamports = await conn.getBalance(buyerPubkey);
+      if (currentLamports < lamports) {
+        const currentSol = (currentLamports / LAMPORTS_PER_SOL).toFixed(3);
+        throw new Error(
+          `Insufficient Devnet SOL in your wallet (${currentSol} SOL). You need ${selectedTier.price}. Please get free Devnet SOL at faucet.solana.com.`
+        );
       }
 
-      // 2. Dispatch DTNC Tokens from Treasury
-      setLoadingStep(`Transferring ${selectedTier.amount.toLocaleString()} DTNC tokens to your wallet...`);
+      const tx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: buyerPubkey,
+          toPubkey: treasuryPubkey,
+          lamports,
+        })
+      );
+
+      const { blockhash } = await conn.getLatestBlockhash('confirmed');
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = buyerPubkey;
+
+      // Pops up Phantom dialog for user signature
+      const { signature } = await window.solana.signAndSendTransaction(tx);
+      solPaymentSignature = signature;
+
+      setLoadingStep('Confirming SOL payment on Solana Devnet...');
+      await conn.confirmTransaction(signature, 'confirmed');
+
+      // Refresh SOL balance immediately
+      await refreshSolBalance(buyerPubkey.toBase58());
+
+      // 2. Dispatch DTNC Tokens from Treasury with verified on-chain payment signature
+      setLoadingStep(`Delivering ${selectedTier.amount} DTNC tokens to your wallet...`);
       const token = getToken();
 
       const { data } = await axios.post(
@@ -282,7 +319,6 @@ const DTNCStore = ({ user: propUser }) => {
       console.error('Purchase error:', err);
       const serverMsg =
         err.response?.data?.message ||
-        err.response?.data?.details ||
         err.response?.data?.error ||
         err.message ||
         'Purchase failed. Please try again.';
@@ -295,18 +331,18 @@ const DTNCStore = ({ user: propUser }) => {
 
   return (
     <div className="store-page-root">
-      {/* 1. Fullscreen interactive R4X Spline 3D Scene (shifted comfortably down) */}
+      {/* 1. Fullscreen interactive R4X Spline 3D Scene */}
       <R4XScene watermark="DTNC" />
 
-      {/* 2. Floating Bottom Dock Container (Housing Middle Bar + Checkout + Tiers) */}
+      {/* 2. Floating Bottom Dock Container (Middle Bar + Checkout + Tiers) */}
       <div className="store-dock-wrapper">
         <motion.div
           className="store-dock-container"
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.25, duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
+          transition={{ delay: 0.2, duration: 0.55, ease: [0.32, 0.72, 0, 1] }}
         >
-          {/* Middle Store Bar: Sits right below the 3D ball and just above the purchase options */}
+          {/* Middle Store Bar: Positioned below 3D ball and above tier options */}
           <div className="store-middle-bar">
             <div className="store-middle-bar-left">
               <span className="store-middle-bar-coin">🪙</span>
@@ -320,17 +356,39 @@ const DTNCStore = ({ user: propUser }) => {
 
             <div className="store-middle-bar-actions">
               {phantomConnected ? (
-                <div
-                  className="store-phantom-badge"
-                  title={`Connected Phantom: ${phantomAccount}\nDevnet Balance: ${solBalance !== null ? solBalance.toFixed(3) : '...'} SOL`}
-                >
-                  <span className="phantom-dot" />
-                  <span className="phantom-label">
-                    {phantomAccount.slice(0, 4)}...{phantomAccount.slice(-4)}
-                  </span>
-                  {solBalance !== null && (
-                    <span className="phantom-sol-tag">{solBalance.toFixed(2)} SOL</span>
-                  )}
+                <div className="store-phantom-connected-group">
+                  <div
+                    className="store-phantom-badge"
+                    title={`Connected: ${phantomAccount}\nDevnet Balance: ${solBalance !== null ? solBalance.toFixed(3) : '...'} SOL`}
+                  >
+                    <span className="phantom-dot" />
+                    <span className="phantom-label">
+                      {phantomAccount.slice(0, 4)}...{phantomAccount.slice(-4)}
+                    </span>
+                    {solBalance !== null && (
+                      <span className="phantom-sol-tag">{solBalance.toFixed(2)} SOL</span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="store-phantom-switch-btn"
+                    onClick={handleConnectPhantom}
+                    onMouseEnter={hover.onMouseEnter}
+                    title="Switch Account in Phantom"
+                  >
+                    ⇄ Switch
+                  </button>
+
+                  <button
+                    type="button"
+                    className="store-phantom-disconnect-btn"
+                    onClick={handleDisconnectPhantom}
+                    onMouseEnter={hover.onMouseEnter}
+                    title="Disconnect Wallet"
+                  >
+                    ✕
+                  </button>
                 </div>
               ) : (
                 <button
@@ -338,7 +396,7 @@ const DTNCStore = ({ user: propUser }) => {
                   className="store-phantom-connect-btn"
                   onClick={handleConnectPhantom}
                   onMouseEnter={hover.onMouseEnter}
-                  title="Connect Phantom wallet to auto-fill address and pay with Devnet SOL"
+                  title="Connect Phantom wallet to pay with Devnet SOL"
                 >
                   <span className="phantom-btn-ghost">👻</span>
                   <span>Connect Phantom</span>
@@ -360,7 +418,7 @@ const DTNCStore = ({ user: propUser }) => {
                   <path d="M16 12h.01" />
                   <path d="M2 10h20" />
                 </svg>
-                <span>Devnet Wallets & Setup</span>
+                <span>Wallets & Setup</span>
               </button>
             </div>
           </div>
@@ -405,7 +463,7 @@ const DTNCStore = ({ user: propUser }) => {
                   <div className="store-treasury-warning">
                     <span className="store-treasury-warning-icon">⚠️</span>
                     <div className="store-treasury-warning-text">
-                      <strong>Treasury Address Detected:</strong> This address is the DATIN Treasury. Sending DTNC here loops back to itself, so the balance won't change. To test personal receipt, enter another Devnet address (e.g. create a 2nd account in Phantom).
+                      <strong>Treasury Account Detected:</strong> This wallet is the DATIN Treasury reserve. Purchasing with this account transfers SOL and DTNC from yourself to yourself. To receive new DTNC tokens into a customer wallet, switch to a 2nd account in Phantom.
                     </div>
                   </div>
                 )}
@@ -415,29 +473,22 @@ const DTNCStore = ({ user: propUser }) => {
                     <input
                       className="glass-input store-wallet-input"
                       type="text"
-                      placeholder="Solana Devnet wallet address (e.g., 7BuU...)"
+                      placeholder="Connect Phantom wallet above to autofill address"
                       value={walletAddress}
+                      readOnly={phantomConnected}
                       onChange={(e) => {
-                        setWalletAddress(e.target.value);
-                        setError('');
+                        if (!phantomConnected) {
+                          setWalletAddress(e.target.value);
+                          setError('');
+                        }
                       }}
                       disabled={loading}
                     />
 
-                    {phantomAccount && walletAddress !== phantomAccount && (
-                      <button
-                        type="button"
-                        className="store-autofill-btn"
-                        onClick={() => {
-                          click.onClick();
-                          setWalletAddress(phantomAccount);
-                          setError('');
-                        }}
-                        onMouseEnter={hover.onMouseEnter}
-                        title="Use connected Phantom address"
-                      >
-                        Use Phantom
-                      </button>
+                    {phantomConnected && (
+                      <span className="store-wallet-locked-badge">
+                        🔒 Linked to Phantom
+                      </span>
                     )}
                   </div>
 
@@ -458,11 +509,7 @@ const DTNCStore = ({ user: propUser }) => {
                       </div>
                     ) : (
                       <>
-                        <span>
-                          {phantomConnected && phantomAccount === walletAddress.trim()
-                            ? `Pay ${selectedTier.price} & Buy`
-                            : `Buy ${selectedTier.amount.toLocaleString()} DTNC`}
-                        </span>
+                        <span>Pay {selectedTier.price} & Buy {selectedTier.amount} DTNC</span>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="5" y1="12" x2="19" y2="12" />
                           <polyline points="12 5 19 12 12 19" />
@@ -485,12 +532,13 @@ const DTNCStore = ({ user: propUser }) => {
                     <span className="store-wallet-hint-icon">⚡</span>
                     <span className="store-wallet-hint-text">
                       {phantomConnected ? (
-                        <>Connected to Phantom (Devnet). SOL will be deducted via Phantom popup.</>
+                        <>Payment of <strong>{selectedTier.price}</strong> will be deducted via Phantom popup.</>
                       ) : (
-                        <>Requires a Solana wallet with <strong>Devnet mode enabled</strong> (e.g., Phantom).</>
+                        <>Please <strong>Connect Phantom</strong> above to authorize payment.</>
                       )}
                     </span>
                   </div>
+
                   <button
                     type="button"
                     className="store-wallet-hint-btn"
@@ -500,7 +548,7 @@ const DTNCStore = ({ user: propUser }) => {
                     }}
                     onMouseEnter={hover.onMouseEnter}
                   >
-                    Setup Guide & Wallets ↗
+                    Devnet Guide ↗
                   </button>
                 </div>
               </motion.div>
@@ -529,6 +577,9 @@ const DTNCStore = ({ user: propUser }) => {
                     </div>
                     <div className="dock-tier-price-row">
                       <span className="dock-tier-cost">{tier.price}</span>
+                    </div>
+                    <div className="dock-tier-sub-row">
+                      <span className="dock-tier-sub">{tier.subtitle}</span>
                     </div>
                   </motion.button>
                 );
