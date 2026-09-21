@@ -82,7 +82,7 @@ const SUPPORTED_WALLETS = [
   },
 ];
 
-const DTNCStore = ({ user: propUser, is3DMode = true }) => {
+const DTNCStore = ({ user: propUser, is3DMode = false }) => {
   const [selectedTier, setSelectedTier] = useState(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [loading, setLoading] = useState(false);

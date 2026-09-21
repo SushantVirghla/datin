@@ -94,16 +94,16 @@ const App = () => {
   // Only mount the 3D robot on the Landing Page — /chat uses a dedicated, ultra-fast ambient environment
   const isSplineBotRoute = location.pathname === '/';
 
-  // Global 3D vs. Speed Mode toggle with persistent localStorage preference
+  // Speed Mode is default across all devices (zero GPU fillrate lag)
   const [is3DMode, setIs3DMode] = useState(() => {
-    const saved = localStorage.getItem('datin_3d_mode');
-    return saved !== null ? saved === 'true' : true;
+    const saved = localStorage.getItem('datin_graphics_mode_v2');
+    return saved === '3d'; // Defaults to false (Speed Mode) on all devices
   });
 
   const handleToggleGraphics = useCallback(() => {
     setIs3DMode((prev) => {
       const next = !prev;
-      localStorage.setItem('datin_3d_mode', String(next));
+      localStorage.setItem('datin_graphics_mode_v2', next ? '3d' : 'speed');
       return next;
     });
   }, []);

@@ -3,7 +3,7 @@ import Spline from '@splinetool/react-spline';
 import { SPLINE_SCENE_URL } from '../api/config';
 import CyberneticCore from './CyberneticCore';
 
-const SplineScene = ({ is3DMode = true }) => {
+const SplineScene = ({ is3DMode = false }) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   // If Speed / Performance mode is active, render the lightweight 60–144 FPS Cybernetic Core

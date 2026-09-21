@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useHoverSound, useClickSound } from '../hooks/useHoverSound';
 import './TopBar.css';
 
-const TopBar = ({ onMenuToggle, user, onProfileClick, is3DMode = true, onToggleGraphics }) => {
+const TopBar = ({ onMenuToggle, user, onProfileClick, is3DMode = false, onToggleGraphics }) => {
   const hover = useHoverSound();
   const click = useClickSound();
 

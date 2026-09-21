@@ -3,7 +3,7 @@ import Spline from '@splinetool/react-spline';
 import { R4X_SPLINE_SCENE_URL } from '../api/config';
 import CyberneticCore from './CyberneticCore';
 
-const R4XScene = ({ watermark = 'DTNC', is3DMode = true }) => {
+const R4XScene = ({ watermark = 'DTNC', is3DMode = false }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const sceneRef = useRef(null);
   const splineAppRef = useRef(null);
