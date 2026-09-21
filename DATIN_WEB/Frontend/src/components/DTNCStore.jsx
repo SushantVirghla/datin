@@ -22,7 +22,7 @@ const TIERS = [
   { amount: 500, price: '0.22 SOL', priceNum: 0.22, popular: false, subtitle: 'Enterprise Node' },
 ];
 
-const TOKEN_MINT_ADDRESS = 'GTtYpb1bkEPFik2q9ecGBrMTs1TtzCC47DZvez5ahqus';
+const TOKEN_MINT_ADDRESS = 'mntHo2pnnFBctoQ2AozsnZeCfjyk2ehDzwAkmFnr4s3';
 const TREASURY_WALLET_ADDRESS = '7BuUZExqbTbu17bewobuxxo4kpA4MNrtWrRT5oraThtc';
 const DEVNET_RPC = 'https://api.devnet.solana.com';
 
