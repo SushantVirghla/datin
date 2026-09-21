@@ -3,7 +3,7 @@ const splToken = require('@solana/spl-token');
 
 // ==================== CONFIGURATION ====================
 const DTNC_TOKEN_MINT = new web3.PublicKey(
-  process.env.DTNC_TOKEN_MINT || 'mntHo2pnnFBctoQ2AozsnZeCfjyk2ehDzwAkmFnr4s3'
+  process.env.DTNC_TOKEN_MINT || 'GTtYpb1bkEPFik2q9ecGBrMTs1TtzCC47DZvez5ahqus'
 );
 const DTNC_DECIMALS = 9;
 const TOKEN_2022_PROGRAM_ID = splToken.TOKEN_2022_PROGRAM_ID; // TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb
