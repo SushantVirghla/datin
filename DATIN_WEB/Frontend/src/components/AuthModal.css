@@ -322,3 +322,94 @@
 .auth-switch button:hover {
   text-decoration: underline;
 }
+
+/* =========================================
+   Password Input Wrapper & Eye Toggle Button
+   ========================================= */
+
+.password-input-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper .glass-input {
+  padding-right: 2.85rem !important;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.2s ease, transform 0.2s var(--ios-spring);
+  z-index: 2;
+}
+
+.password-toggle-btn:hover {
+  color: var(--text-primary);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.password-toggle-btn:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+/* Forgot Password Link */
+.auth-forgot-link {
+  background: none;
+  border: none;
+  font-family: var(--font-main);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.2s ease, text-decoration 0.2s ease;
+}
+
+.auth-forgot-link:hover {
+  text-decoration: underline;
+}
+
+/* Public Researcher Identity Notice in Signup */
+.auth-public-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.65rem 0.85rem;
+  background: rgba(0, 122, 255, 0.07);
+  border: 1px solid rgba(0, 122, 255, 0.22);
+  border-radius: 12px;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: #0066cc;
+  margin-bottom: 0.85rem;
+}
+
+.auth-public-note svg {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.auth-public-note strong {
+  color: #0055b3;
+}
+
+.auth-alert-banner.success {
+  background: rgba(52, 199, 89, 0.12);
+  border: 1px solid rgba(52, 199, 89, 0.35);
+  color: #1b8a38;
+}
+

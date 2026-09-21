@@ -732,12 +732,21 @@ function validatePasswordComplexity(password) {
 // email -> { fullName, email, passwordHash, walletAddress, otp, expiresAt, attempts, lastSentAt }
 const pendingSignups = new Map();
 
-// Periodic garbage collection for expired pending signups (every 5 minutes)
+// In-memory pending password resets cache:
+// email -> { email, otp, expiresAt, attempts, lastSentAt }
+const pendingPasswordResets = new Map();
+
+// Periodic garbage collection for expired pending signups & resets (every 5 minutes)
 setInterval(() => {
   const now = Date.now();
   for (const [email, record] of pendingSignups.entries()) {
     if (now > record.expiresAt) {
       pendingSignups.delete(email);
+    }
+  }
+  for (const [email, record] of pendingPasswordResets.entries()) {
+    if (now > record.expiresAt) {
+      pendingPasswordResets.delete(email);
     }
   }
 }, 5 * 60 * 1000);
@@ -912,6 +921,147 @@ async function sendVerificationEmail(email, otp, fullName) {
   console.log(`\n=============================================================`);
   console.log(`🔐 [AUTH OTP DISPATCH] Target: ${email}`);
   console.log(`👉 6-DIGIT VERIFICATION CODE: >>> ${otp} <<< (10 min expiry)`);
+  console.log(`=============================================================\n`);
+
+  return { sent: false, fallback: true };
+}
+
+async function sendPasswordResetEmail(email, otp, fullName) {
+  const fromEmail = process.env.EMAIL_FROM || 'DATIN Security <sushantvirghla@gmail.com>';
+
+  const htmlContent = `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DATIN Password Reset</title>
+    <style>
+      body { margin: 0; padding: 0; background-color: #0d1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f0f6fc; }
+      .wrapper { width: 100%; table-layout: fixed; background-color: #0d1117; padding: 40px 0; }
+      .card { max-width: 520px; margin: 0 auto; background: linear-gradient(135deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.98) 100%); border: 1px solid rgba(255, 69, 58, 0.35); border-radius: 20px; padding: 36px; box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6); }
+      .brand { font-size: 20px; font-weight: 700; letter-spacing: 2.5px; color: #ff453a; text-transform: uppercase; margin-bottom: 24px; display: inline-block; }
+      h1 { font-size: 22px; font-weight: 600; margin: 0 0 14px; color: #ffffff; letter-spacing: -0.02em; }
+      p { font-size: 14px; line-height: 1.6; color: #8b949e; margin: 0 0 20px; }
+      .otp-container { background: rgba(255, 69, 58, 0.08); border: 1px dashed rgba(255, 69, 58, 0.5); border-radius: 14px; padding: 22px; text-align: center; margin: 26px 0; }
+      .otp-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: #ff6961; font-weight: 600; margin-bottom: 8px; }
+      .otp-digits { font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #ffffff; font-family: 'SF Mono', Menlo, Monaco, Consolas, monospace; text-shadow: 0 0 16px rgba(255, 69, 58, 0.6); }
+      .badge { display: inline-block; padding: 4px 10px; background: rgba(255, 149, 0, 0.15); border: 1px solid rgba(255, 149, 0, 0.4); border-radius: 999px; color: #ffa657; font-size: 11px; font-weight: 500; margin-top: 10px; }
+      .footer { margin-top: 28px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.08); font-size: 12px; color: #6e7681; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="brand">DATIN SECURITY</div>
+        <h1>Reset your account password</h1>
+        <p>Hello <strong>${fullName || 'Researcher'}</strong>,</p>
+        <p>A password reset request was initiated for your DATIN account. Please enter the verification code below to set a new password:</p>
+        
+        <div class="otp-container">
+          <div class="otp-title">One-Time Password Reset Code</div>
+          <div class="otp-digits">${otp}</div>
+          <div class="badge">Valid for 10 minutes</div>
+        </div>
+
+        <p>If you did not request a password reset, please ignore this email. Your current password remains secure.</p>
+
+        <div class="footer">
+          Decentralized AI Threat Intelligence Network (DATIN)<br>
+          Autonomous zero-day cyber threat classification and Solana consensus.
+        </div>
+      </div>
+    </div>
+  </body>
+  </html>
+  `;
+
+  // Brevo HTTP API
+  const brevoApiKey = process.env.BREVO_API_KEY || (process.env.SMTP_PASS?.startsWith('xkeysib-') ? process.env.SMTP_PASS : null);
+  if (brevoApiKey) {
+    try {
+      const fromAddr = fromEmail.includes('<') ? fromEmail.match(/<([^>]+)>/)?.[1] || fromEmail : fromEmail;
+      const fromName = fromEmail.includes('<') ? fromEmail.split('<')[0].trim().replace(/"/g, '') : 'DATIN Security';
+
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': brevoApiKey,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { name: fromName, email: fromAddr },
+          to: [{ email, name: fullName || 'User' }],
+          subject: `Your DATIN Password Reset Code is: ${otp}`,
+          htmlContent
+        })
+      });
+
+      if (response.ok) {
+        console.log(`📧 Successfully dispatched Brevo password reset email to ${email}`);
+        return { sent: true, provider: 'brevo-api' };
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        console.error(`⚠️ Brevo password reset error for ${email}:`, errJson.message || response.statusText);
+      }
+    } catch (httpErr) {
+      console.error(`⚠️ Brevo reset HTTP dispatch failed:`, httpErr.message);
+    }
+  }
+
+  // Resend HTTP API
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: fromEmail.includes('@resend.dev') ? fromEmail : 'DATIN Security <onboarding@resend.dev>',
+          to: [email],
+          subject: `Your DATIN Password Reset Code is: ${otp}`,
+          html: htmlContent
+        })
+      });
+      if (response.ok) {
+        console.log(`📧 Successfully dispatched Resend password reset email to ${email}`);
+        return { sent: true, provider: 'resend-api' };
+      }
+    } catch (resendErr) {
+      console.error(`⚠️ Resend reset HTTP dispatch failed:`, resendErr.message);
+    }
+  }
+
+  // Standard SMTP
+  const transporter = getMailTransporter();
+  if (transporter) {
+    try {
+      const sendPromise = transporter.sendMail({
+        from: fromEmail,
+        to: email,
+        subject: `Your DATIN Password Reset Code is: ${otp}`,
+        text: `Your DATIN password reset code is: ${otp}. It expires in 10 minutes.`,
+        html: htmlContent
+      });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('SMTP connection timeout')), 4500)
+      );
+      await Promise.race([sendPromise, timeoutPromise]);
+      console.log(`📧 Successfully dispatched SMTP password reset email to ${email}`);
+      return { sent: true, provider: 'smtp' };
+    } catch (err) {
+      console.error(`⚠️ SMTP reset dispatch error for ${email}:`, err.message);
+    }
+  }
+
+  // Terminal Fallback
+  console.log(`\n=============================================================`);
+  console.log(`🔐 [PASSWORD RESET OTP] Target: ${email}`);
+  console.log(`👉 6-DIGIT RESET CODE: >>> ${otp} <<< (10 min expiry)`);
   console.log(`=============================================================\n`);
 
   return { sent: false, fallback: true };
@@ -1138,6 +1288,143 @@ app.post('/resend-signup-otp', async (req, res) => {
 });
 
 // -----------------------------------------------------------------
+// 3b. POST /forgot-password-otp: Sends OTP for Password Reset
+// -----------------------------------------------------------------
+app.post('/forgot-password-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email address is required' });
+    }
+
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.valid) {
+      return res.status(400).json({ success: false, message: emailValidation.message });
+    }
+    const cleanEmail = emailValidation.email;
+
+    const user = users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this email address. Please verify your email or sign up.'
+      });
+    }
+
+    // Cooldown check (60 seconds)
+    const existingPending = pendingPasswordResets.get(cleanEmail);
+    if (existingPending && Date.now() - existingPending.lastSentAt < 60000) {
+      const waitSec = Math.ceil((60000 - (Date.now() - existingPending.lastSentAt)) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${waitSec}s before requesting a new password reset code.`
+      });
+    }
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    pendingPasswordResets.set(cleanEmail, {
+      email: cleanEmail,
+      otp,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+      lastSentAt: Date.now()
+    });
+
+    const mailResult = await sendPasswordResetEmail(cleanEmail, otp, user.fullName);
+
+    res.status(200).json({
+      success: true,
+      message: `Password reset code sent to ${cleanEmail}. Enter the 6-digit code to set a new password.`,
+      email: cleanEmail,
+      cooldownSeconds: 60,
+      devOtp: mailResult.fallback ? otp : undefined
+    });
+  } catch (err) {
+    console.error('Error in /forgot-password-otp:', err);
+    res.status(500).json({ success: false, message: 'Failed to send password reset code. Please try again.' });
+  }
+});
+
+// -----------------------------------------------------------------
+// 3c. POST /reset-password: Verifies OTP & Sets New Password
+// -----------------------------------------------------------------
+app.post('/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, 6-digit verification code, and new password are required.'
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const pending = pendingPasswordResets.get(cleanEmail);
+
+    if (!pending) {
+      return res.status(400).json({
+        success: false,
+        message: 'No pending password reset request found. Please request a new code.'
+      });
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      pendingPasswordResets.delete(cleanEmail);
+      return res.status(400).json({
+        success: false,
+        message: 'Verification code has expired. Please request a new code.'
+      });
+    }
+
+    if (pending.attempts >= 5) {
+      pendingPasswordResets.delete(cleanEmail);
+      return res.status(429).json({
+        success: false,
+        message: 'Too many incorrect attempts. For security, this reset session was invalidated. Please start over.'
+      });
+    }
+
+    const cleanOtp = otp.toString().trim();
+    if (cleanOtp !== pending.otp) {
+      pending.attempts += 1;
+      const remaining = 5 - pending.attempts;
+      return res.status(400).json({
+        success: false,
+        message: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+      });
+    }
+
+    const passwordValidation = validatePasswordComplexity(newPassword);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ success: false, message: passwordValidation.message });
+    }
+
+    const user = users.find(u => u.email.toLowerCase() === cleanEmail);
+    if (!user) {
+      pendingPasswordResets.delete(cleanEmail);
+      return res.status(404).json({ success: false, message: 'User account not found.' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    user.password = passwordHash;
+    user.updatedAt = new Date().toISOString();
+    await saveUsers();
+
+    pendingPasswordResets.delete(cleanEmail);
+
+    console.log(`🔐 [PASSWORD RESET SUCCESS] Updated credentials for ${cleanEmail}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password successfully updated! You can now sign in with your new password.'
+    });
+  } catch (err) {
+    console.error('Error in /reset-password:', err);
+    res.status(500).json({ success: false, message: 'Internal server error while resetting password.' });
+  }
+});
+
+// -----------------------------------------------------------------
 // 4. POST /signup: Legacy Direct Signup with Robust Validation
 // -----------------------------------------------------------------
 app.post('/signup', async (req, res) => {
@@ -1336,9 +1623,14 @@ app.post('/submit-report', authenticateToken, async (req, res) => {
     
     const transactionId = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
+    // Resolve submitting author full name
+    const submitter = users.find(u => String(u.id) === String(req.user.id) || (u.email && u.email.toLowerCase() === req.user.email.toLowerCase()));
+    const authorName = submitter?.fullName || (owner && !owner.includes('@') ? owner : 'Autonomous Security Node');
+
     const report = {
       transactionId,
-      owner: owner || req.user.email,
+      owner: authorName,
+      authorName,
       content,
       tokenAddress,
       reward,
@@ -1431,19 +1723,54 @@ app.post('/submit-report', authenticateToken, async (req, res) => {
 });
 
 app.get('/reports', authenticateToken, (req, res) => {
+  const currentUserId = req.user?.id ? String(req.user.id) : '';
+  const currentUserEmail = req.user?.email ? req.user.email.toLowerCase() : '';
+
   const enrichedReports = reports.map(report => {
     const reportLikes = likes.filter(l => l.reportId === report.transactionId);
     const reportComments = comments.filter(c => c.reportId === report.transactionId);
     const reportValidations = validations.filter(v => v.reportId === report.transactionId);
     const reportReevaluations = reevaluations.filter(r => r.reportId === report.transactionId);
     
+    // Check if report belongs to currently logged-in user
+    const isOwn = (
+      (currentUserId && report.userId && String(report.userId) === currentUserId) ||
+      (currentUserEmail && report.userEmail && report.userEmail.toLowerCase() === currentUserEmail) ||
+      (currentUserEmail && report.owner && report.owner.toLowerCase() === currentUserEmail)
+    );
+
+    // Resolve author name from registered users
+    const author = users.find(u => 
+      (report.userId && String(u.id) === String(report.userId)) ||
+      (report.userEmail && u.email && u.email.toLowerCase() === report.userEmail.toLowerCase()) ||
+      (report.owner && u.email && u.email.toLowerCase() === report.owner.toLowerCase())
+    );
+
+    // If owner field is already a non-email name, keep it, otherwise use author's full name or fallback
+    let authorName = author?.fullName;
+    if (!authorName && report.authorName) {
+      authorName = report.authorName;
+    }
+    if (!authorName && report.owner && !report.owner.includes('@')) {
+      authorName = report.owner;
+    }
+    if (!authorName) {
+      authorName = 'Autonomous Security Node';
+    }
+
     return {
       ...report,
+      authorName,
+      // Protect user privacy: Never leak other users' raw email addresses!
+      userEmail: isOwn ? report.userEmail : undefined,
+      owner: authorName,
       likesCount: reportLikes.length,
       commentsCount: reportComments.length,
       validatorsCount: reportValidations.length,
       reevaluationCount: reportReevaluations.length,
-      likedByCurrentUser: reportLikes.some(l => l.userId === req.user.id)
+      likedByCurrentUser: reportLikes.some(l => String(l.userId) === currentUserId),
+      validatedByCurrentUser: reportValidations.some(v => String(v.userId) === currentUserId),
+      isOwn: !!isOwn
     };
   });
   
@@ -1455,12 +1782,42 @@ app.get('/reports', authenticateToken, (req, res) => {
 });
 
 app.get('/my-reports', authenticateToken, (req, res) => {
-  const userReports = reports.filter(r => r.userId === req.user.id);
+  const currentUserId = req.user?.id ? String(req.user.id) : '';
+  const currentUserEmail = req.user?.email ? req.user.email.toLowerCase() : '';
+
+  const userReports = reports.filter(r => 
+    (currentUserId && r.userId && String(r.userId) === currentUserId) ||
+    (currentUserEmail && r.userEmail && r.userEmail.toLowerCase() === currentUserEmail) ||
+    (currentUserEmail && r.owner && r.owner.toLowerCase() === currentUserEmail)
+  );
+
+  const author = users.find(u => String(u.id) === currentUserId || (u.email && u.email.toLowerCase() === currentUserEmail));
+  const authorName = author?.fullName || 'Researcher (You)';
+
+  const enriched = userReports.map(report => {
+    const reportLikes = likes.filter(l => l.reportId === report.transactionId);
+    const reportComments = comments.filter(c => c.reportId === report.transactionId);
+    const reportValidations = validations.filter(v => v.reportId === report.transactionId);
+    const reportReevaluations = reevaluations.filter(r => r.reportId === report.transactionId);
+
+    return {
+      ...report,
+      authorName,
+      owner: authorName,
+      likesCount: reportLikes.length,
+      commentsCount: reportComments.length,
+      validatorsCount: reportValidations.length,
+      reevaluationCount: reportReevaluations.length,
+      likedByCurrentUser: reportLikes.some(l => String(l.userId) === currentUserId),
+      validatedByCurrentUser: reportValidations.some(v => String(v.userId) === currentUserId),
+      isOwn: true
+    };
+  });
   
   res.json({
     success: true,
-    count: userReports.length,
-    reports: userReports
+    count: enriched.length,
+    reports: enriched
   });
 });
 
@@ -1640,11 +1997,15 @@ app.post('/add-comment/:reportId', authenticateToken, async (req, res) => {
       });
     }
     
+    const commenter = users.find(u => String(u.id) === String(req.user.id) || (u.email && u.email.toLowerCase() === req.user.email.toLowerCase()));
+    const authorName = commenter?.fullName || 'Autonomous Security Node';
+
     const newComment = {
       commentId: `COMMENT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       reportId,
       userId: req.user.id,
       userEmail: req.user.email,
+      authorName,
       content: content.trim(),
       createdAt: new Date().toISOString()
     };
@@ -1655,7 +2016,14 @@ app.post('/add-comment/:reportId', authenticateToken, async (req, res) => {
     res.json({
       success: true,
       message: 'Comment added successfully',
-      comment: newComment
+      comment: {
+        commentId: newComment.commentId,
+        reportId: newComment.reportId,
+        authorName,
+        content: newComment.content,
+        createdAt: newComment.createdAt,
+        isOwn: true
+      }
     });
     
   } catch (error) {
@@ -1669,12 +2037,32 @@ app.post('/add-comment/:reportId', authenticateToken, async (req, res) => {
 
 app.get('/comments/:reportId', authenticateToken, (req, res) => {
   const { reportId } = req.params;
+  const currentUserId = req.user?.id ? String(req.user.id) : '';
+  const currentUserEmail = req.user?.email ? req.user.email.toLowerCase() : '';
+
   const reportComments = comments.filter(c => c.reportId === reportId);
   
+  const sanitizedComments = reportComments.map(c => {
+    const user = users.find(u => (c.userId && String(u.id) === String(c.userId)) || (u.email && u.email.toLowerCase() === (c.userEmail || '').toLowerCase()));
+    const isOwn = (
+      (currentUserId && c.userId && String(c.userId) === currentUserId) ||
+      (currentUserEmail && c.userEmail && c.userEmail.toLowerCase() === currentUserEmail)
+    );
+
+    return {
+      commentId: c.commentId,
+      reportId: c.reportId,
+      authorName: user?.fullName || c.authorName || 'Autonomous Security Node',
+      content: c.content,
+      createdAt: c.createdAt,
+      isOwn: !!isOwn
+    };
+  });
+
   res.json({
     success: true,
-    count: reportComments.length,
-    comments: reportComments
+    count: sanitizedComments.length,
+    comments: sanitizedComments
   });
 });
 
@@ -1834,12 +2222,33 @@ app.post('/validate/:reportId', authenticateToken, async (req, res) => {
 
 app.get('/validations/:reportId', authenticateToken, (req, res) => {
   const { reportId } = req.params;
+  const currentUserId = req.user?.id ? String(req.user.id) : '';
+  const currentUserEmail = req.user?.email ? req.user.email.toLowerCase() : '';
+
   const reportValidations = validations.filter(v => v.reportId === reportId);
   
+  const sanitizedValidations = reportValidations.map(v => {
+    const user = users.find(u => (v.userId && String(u.id) === String(v.userId)) || (u.email && u.email.toLowerCase() === (v.userEmail || '').toLowerCase()));
+    const isOwn = (
+      (currentUserId && v.userId && String(v.userId) === currentUserId) ||
+      (currentUserEmail && v.userEmail && v.userEmail.toLowerCase() === currentUserEmail)
+    );
+
+    return {
+      validationId: v.validationId,
+      reportId: v.reportId,
+      validatorName: user?.fullName || 'Verified Node Validator',
+      walletAddress: v.walletAddress ? `${v.walletAddress.slice(0, 4)}...${v.walletAddress.slice(-4)}` : '',
+      isValid: v.isValid,
+      createdAt: v.createdAt,
+      isOwn: !!isOwn
+    };
+  });
+
   res.json({
     success: true,
-    count: reportValidations.length,
-    validations: reportValidations
+    count: sanitizedValidations.length,
+    validations: sanitizedValidations
   });
 });
 

@@ -55,6 +55,22 @@ export async function resendSignupOtp(email) {
   return data;
 }
 
+export async function sendForgotPasswordOtp(email) {
+  const { data } = await api.post('/forgot-password-otp', {
+    email: email.trim().toLowerCase(),
+  });
+  return data;
+}
+
+export async function resetPassword(email, otp, newPassword) {
+  const { data } = await api.post('/reset-password', {
+    email: email.trim().toLowerCase(),
+    otp: otp.trim(),
+    newPassword,
+  });
+  return data;
+}
+
 export async function signup(fullName, email, password, walletAddress = '') {
   const { data } = await api.post('/signup', {
     fullName: fullName.trim(),
