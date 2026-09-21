@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  SystemProgram,
+  LAMPORTS_PER_SOL,
+} from '@solana/web3.js';
 import { AUTH_BASE_URL } from '../api/config';
 import { getToken, getStoredUser } from '../api/auth';
 import { useHoverSound, useClickSound } from '../hooks/useHoverSound';
@@ -15,6 +22,8 @@ const TIERS = [
 ];
 
 const TOKEN_MINT_ADDRESS = 'mntHo2pnnFBctoQ2AozsnZeCfjyk2ehDzwAkmFnr4s3';
+const TREASURY_WALLET_ADDRESS = '7BuUZExqbTbu17bewobuxxo4kpA4MNrtWrRT5oraThtc';
+const DEVNET_RPC = 'https://api.devnet.solana.com';
 
 const SUPPORTED_WALLETS = [
   {
@@ -28,7 +37,7 @@ const SUPPORTED_WALLETS = [
       'Download & install Phantom from phantom.app',
       'Open Settings (⚙️ icon in bottom right) → Developer Settings',
       'Toggle ON "Testnet Mode" and select "Solana Devnet"',
-      'Copy your Devnet wallet address and paste below to receive DTNC',
+      'Connect Phantom or paste your address below to receive DTNC',
     ],
   },
   {
@@ -76,20 +85,78 @@ const DTNCStore = ({ user: propUser }) => {
   const [selectedTier, setSelectedTier] = useState(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState(null);
   const [showWalletGuide, setShowWalletGuide] = useState(false);
   const [copiedMint, setCopiedMint] = useState(false);
 
+  // Web3 Phantom state
+  const [phantomAccount, setPhantomAccount] = useState(null);
+  const [phantomConnected, setPhantomConnected] = useState(false);
+  const [solBalance, setSolBalance] = useState(null);
+
   const hover = useHoverSound();
   const click = useClickSound();
   const user = propUser || getStoredUser();
 
+  // Auto-fill from user profile
   useEffect(() => {
-    if (user?.walletAddress && !walletAddress) {
+    if (user?.walletAddress && !walletAddress && !phantomAccount) {
       setWalletAddress(user.walletAddress);
     }
   }, [user]);
+
+  // Eagerly check if Phantom is already connected/trusted
+  useEffect(() => {
+    if (window.solana && window.solana.isPhantom) {
+      window.solana
+        .connect({ onlyIfTrusted: true })
+        .then(async (resp) => {
+          const pubkey = resp.publicKey.toString();
+          setPhantomAccount(pubkey);
+          setPhantomConnected(true);
+          setWalletAddress(pubkey);
+
+          try {
+            const conn = new Connection(DEVNET_RPC, 'confirmed');
+            const bal = await conn.getBalance(resp.publicKey);
+            setSolBalance(bal / LAMPORTS_PER_SOL);
+          } catch (_) {}
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const handleConnectPhantom = async () => {
+    click.onClick();
+    if (!window.solana || !window.solana.isPhantom) {
+      setShowWalletGuide(true);
+      setError('Phantom wallet is not installed in your browser. Please install Phantom or enter your address manually.');
+      return;
+    }
+
+    try {
+      const resp = await window.solana.connect({ onlyIfTrusted: false });
+      const pubkey = resp.publicKey.toString();
+      setPhantomAccount(pubkey);
+      setPhantomConnected(true);
+      setWalletAddress(pubkey);
+      setError('');
+
+      // Fetch SOL balance on devnet
+      try {
+        const conn = new Connection(DEVNET_RPC, 'confirmed');
+        const bal = await conn.getBalance(resp.publicKey);
+        setSolBalance(bal / LAMPORTS_PER_SOL);
+      } catch (balErr) {
+        console.warn('Could not fetch SOL balance:', balErr);
+      }
+    } catch (err) {
+      console.error('Phantom connect error:', err);
+      setError(err.message || 'Failed to connect Phantom wallet');
+    }
+  };
 
   const handleSelectTier = (tier) => {
     click.onClick();
@@ -107,6 +174,8 @@ const DTNCStore = ({ user: propUser }) => {
     setCopiedMint(true);
     setTimeout(() => setCopiedMint(false), 2500);
   };
+
+  const isTreasuryAddress = walletAddress.trim() === TREASURY_WALLET_ADDRESS;
 
   const handlePurchase = async () => {
     if (!selectedTier) {
@@ -128,27 +197,83 @@ const DTNCStore = ({ user: propUser }) => {
     click.onClick();
     setLoading(true);
     setError('');
+    let solPaymentSignature = null;
 
     try {
+      // 1. If Phantom is connected to this wallet, initiate real SOL deduction
+      if (phantomConnected && phantomAccount && trimmedWallet === phantomAccount) {
+        setLoadingStep(`Requesting ${selectedTier.price} payment in Phantom...`);
+
+        try {
+          const conn = new Connection(DEVNET_RPC, 'confirmed');
+          const buyerPubkey = new PublicKey(phantomAccount);
+          const treasuryPubkey = new PublicKey(TREASURY_WALLET_ADDRESS);
+
+          const lamports = Math.round(selectedTier.priceNum * LAMPORTS_PER_SOL);
+
+          // Check balance before asking
+          const currentLamports = await conn.getBalance(buyerPubkey);
+          if (currentLamports < lamports) {
+            const currentSol = (currentLamports / LAMPORTS_PER_SOL).toFixed(3);
+            throw new Error(
+              `Insufficient Devnet SOL in Phantom (${currentSol} SOL). You need ${selectedTier.price}. Get free Devnet SOL at faucet.solana.com.`
+            );
+          }
+
+          const tx = new Transaction().add(
+            SystemProgram.transfer({
+              fromPubkey: buyerPubkey,
+              toPubkey: treasuryPubkey,
+              lamports,
+            })
+          );
+
+          const { blockhash } = await conn.getLatestBlockhash('confirmed');
+          tx.recentBlockhash = blockhash;
+          tx.feePayer = buyerPubkey;
+
+          // Pops up Phantom dialog
+          const { signature } = await window.solana.signAndSendTransaction(tx);
+          solPaymentSignature = signature;
+
+          setLoadingStep('Confirming SOL payment on Solana Devnet...');
+          await conn.confirmTransaction(signature, 'confirmed');
+
+          // Refresh SOL balance
+          const newBal = await conn.getBalance(buyerPubkey);
+          setSolBalance(newBal / LAMPORTS_PER_SOL);
+        } catch (phantomErr) {
+          console.error('Phantom payment error:', phantomErr);
+          throw new Error(phantomErr.message || 'Phantom SOL payment failed or was rejected');
+        }
+      }
+
+      // 2. Dispatch DTNC Tokens from Treasury
+      setLoadingStep(`Transferring ${selectedTier.amount.toLocaleString()} DTNC tokens to your wallet...`);
       const token = getToken();
+
       const { data } = await axios.post(
         `${AUTH_BASE_URL}/purchase-dtnc`,
         {
           walletAddress: trimmedWallet,
           amount: selectedTier.amount,
           price: selectedTier.priceNum,
+          solPaymentSignature,
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          timeout: 45000, // Allow 45s for blockchain confirmation
+          timeout: 45000,
         }
       );
 
       if (data.success) {
-        setReceipt(data);
+        setReceipt({
+          ...data,
+          solPaymentSignature,
+        });
         setSelectedTier(null);
       } else {
         setError(data.message || data.error || 'Purchase failed');
@@ -164,62 +289,91 @@ const DTNCStore = ({ user: propUser }) => {
       setError(serverMsg);
     } finally {
       setLoading(false);
+      setLoadingStep('');
     }
   };
 
   return (
     <div className="store-page-root">
-      {/* 1. Fullscreen interactive R4X Spline 3D Scene with DTNC Watermark */}
+      {/* 1. Fullscreen interactive R4X Spline 3D Scene (shifted comfortably down) */}
       <R4XScene watermark="DTNC" />
 
-      {/* 2. Floating Top Header Pill with Wallet Guide Trigger */}
-      <div className="store-floating-header">
-        <div className="store-header-pill">
-          <span className="store-header-coin">🪙</span>
-          <div className="store-header-info">
-            <h1 className="store-header-title">DATIN Coin (DTNC) Store</h1>
-            <span className="store-header-desc">
-              Solana Devnet Token-2022 • Mint: {TOKEN_MINT_ADDRESS.slice(0, 6)}...{TOKEN_MINT_ADDRESS.slice(-4)}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            className="store-wallet-guide-pill-btn"
-            onClick={() => {
-              click.onClick();
-              setShowWalletGuide(true);
-            }}
-            onMouseEnter={hover.onMouseEnter}
-            title="View supported wallets and setup instructions"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="4" width="20" height="16" rx="3" />
-              <path d="M16 12h.01" />
-              <path d="M2 10h20" />
-            </svg>
-            <span>Devnet Wallets & Setup</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 3. Floating Bottom Dock (Tiers + Interactive Checkout) */}
+      {/* 2. Floating Bottom Dock Container (Housing Middle Bar + Checkout + Tiers) */}
       <div className="store-dock-wrapper">
         <motion.div
           className="store-dock-container"
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
+          transition={{ delay: 0.25, duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
         >
+          {/* Middle Store Bar: Sits right below the 3D ball and just above the purchase options */}
+          <div className="store-middle-bar">
+            <div className="store-middle-bar-left">
+              <span className="store-middle-bar-coin">🪙</span>
+              <div className="store-middle-bar-info">
+                <h2 className="store-middle-bar-title">DATIN Coin (DTNC) Store</h2>
+                <span className="store-middle-bar-desc">
+                  Solana Devnet Token-2022 • Mint: {TOKEN_MINT_ADDRESS.slice(0, 6)}...{TOKEN_MINT_ADDRESS.slice(-4)}
+                </span>
+              </div>
+            </div>
+
+            <div className="store-middle-bar-actions">
+              {phantomConnected ? (
+                <div
+                  className="store-phantom-badge"
+                  title={`Connected Phantom: ${phantomAccount}\nDevnet Balance: ${solBalance !== null ? solBalance.toFixed(3) : '...'} SOL`}
+                >
+                  <span className="phantom-dot" />
+                  <span className="phantom-label">
+                    {phantomAccount.slice(0, 4)}...{phantomAccount.slice(-4)}
+                  </span>
+                  {solBalance !== null && (
+                    <span className="phantom-sol-tag">{solBalance.toFixed(2)} SOL</span>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="store-phantom-connect-btn"
+                  onClick={handleConnectPhantom}
+                  onMouseEnter={hover.onMouseEnter}
+                  title="Connect Phantom wallet to auto-fill address and pay with Devnet SOL"
+                >
+                  <span className="phantom-btn-ghost">👻</span>
+                  <span>Connect Phantom</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                className="store-wallet-guide-pill-btn"
+                onClick={() => {
+                  click.onClick();
+                  setShowWalletGuide(true);
+                }}
+                onMouseEnter={hover.onMouseEnter}
+                title="View supported wallets and setup instructions"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="3" />
+                  <path d="M16 12h.01" />
+                  <path d="M2 10h20" />
+                </svg>
+                <span>Devnet Wallets & Setup</span>
+              </button>
+            </div>
+          </div>
+
           {/* Slide-up Checkout Panel when a tier is selected */}
           <AnimatePresence>
             {selectedTier && !receipt && (
               <motion.div
                 className="store-checkout-panel"
-                initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                initial={{ opacity: 0, y: 16, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 20, scale: 0.98 }}
-                transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+                exit={{ opacity: 0, y: 16, scale: 0.98 }}
+                transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
               >
                 <div className="store-checkout-top">
                   <div className="checkout-summary-badge">
@@ -229,6 +383,7 @@ const DTNCStore = ({ user: propUser }) => {
                     <span className="checkout-summary-divider">•</span>
                     <span className="checkout-summary-price">{selectedTier.price}</span>
                   </div>
+
                   <button
                     type="button"
                     className="checkout-cancel-btn"
@@ -245,6 +400,16 @@ const DTNCStore = ({ user: propUser }) => {
 
                 {error && <div className="form-error store-error-alert">{error}</div>}
 
+                {/* Treasury address loopback warning */}
+                {isTreasuryAddress && (
+                  <div className="store-treasury-warning">
+                    <span className="store-treasury-warning-icon">⚠️</span>
+                    <div className="store-treasury-warning-text">
+                      <strong>Treasury Address Detected:</strong> This address is the DATIN Treasury. Sending DTNC here loops back to itself, so the balance won't change. To test personal receipt, enter another Devnet address (e.g. create a 2nd account in Phantom).
+                    </div>
+                  </div>
+                )}
+
                 <div className="store-checkout-form-row">
                   <div className="store-input-group">
                     <input
@@ -258,19 +423,20 @@ const DTNCStore = ({ user: propUser }) => {
                       }}
                       disabled={loading}
                     />
-                    {user?.walletAddress && walletAddress !== user.walletAddress && (
+
+                    {phantomAccount && walletAddress !== phantomAccount && (
                       <button
                         type="button"
                         className="store-autofill-btn"
                         onClick={() => {
                           click.onClick();
-                          setWalletAddress(user.walletAddress);
+                          setWalletAddress(phantomAccount);
                           setError('');
                         }}
                         onMouseEnter={hover.onMouseEnter}
-                        title="Use wallet from your profile"
+                        title="Use connected Phantom address"
                       >
-                        Auto-fill
+                        Use Phantom
                       </button>
                     )}
                   </div>
@@ -281,8 +447,8 @@ const DTNCStore = ({ user: propUser }) => {
                     onClick={handlePurchase}
                     disabled={loading || !walletAddress.trim()}
                     onMouseEnter={hover.onMouseEnter}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.96 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
                   >
                     {loading ? (
                       <div className="chatbar-loading-dots">
@@ -292,7 +458,11 @@ const DTNCStore = ({ user: propUser }) => {
                       </div>
                     ) : (
                       <>
-                        <span>Buy {selectedTier.amount.toLocaleString()} DTNC</span>
+                        <span>
+                          {phantomConnected && phantomAccount === walletAddress.trim()
+                            ? `Pay ${selectedTier.price} & Buy`
+                            : `Buy ${selectedTier.amount.toLocaleString()} DTNC`}
+                        </span>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="5" y1="12" x2="19" y2="12" />
                           <polyline points="12 5 19 12 12 19" />
@@ -302,12 +472,23 @@ const DTNCStore = ({ user: propUser }) => {
                   </motion.button>
                 </div>
 
+                {loadingStep && (
+                  <div className="store-checkout-step-status">
+                    <div className="store-spinner-small" />
+                    <span>{loadingStep}</span>
+                  </div>
+                )}
+
                 {/* Helpful Wallet Notice & Guide Link inside Checkout */}
                 <div className="store-wallet-hint-row">
                   <div className="store-wallet-hint-left">
                     <span className="store-wallet-hint-icon">⚡</span>
                     <span className="store-wallet-hint-text">
-                      Requires a Solana wallet with <strong>Devnet mode enabled</strong> (e.g., Phantom).
+                      {phantomConnected ? (
+                        <>Connected to Phantom (Devnet). SOL will be deducted via Phantom popup.</>
+                      ) : (
+                        <>Requires a Solana wallet with <strong>Devnet mode enabled</strong> (e.g., Phantom).</>
+                      )}
                     </span>
                   </div>
                   <button
@@ -338,7 +519,7 @@ const DTNCStore = ({ user: propUser }) => {
                     className={`store-dock-tier-card${isSelected ? ' is-selected' : ''}${tier.popular ? ' is-popular' : ''}`}
                     onClick={() => handleSelectTier(tier)}
                     onMouseEnter={hover.onMouseEnter}
-                    whileHover={{ scale: 1.04, y: -4 }}
+                    whileHover={{ scale: 1.03, y: -3 }}
                     whileTap={{ scale: 0.96 }}
                   >
                     {tier.popular && <span className="dock-popular-pill">Most Popular</span>}
@@ -357,7 +538,7 @@ const DTNCStore = ({ user: propUser }) => {
         </motion.div>
       </div>
 
-      {/* 4. Supported Devnet Wallets & Setup Guide Modal */}
+      {/* 3. Supported Devnet Wallets & Setup Guide Modal */}
       <AnimatePresence>
         {showWalletGuide && (
           <motion.div
@@ -520,7 +701,7 @@ const DTNCStore = ({ user: propUser }) => {
         )}
       </AnimatePresence>
 
-      {/* 5. Success Receipt Modal */}
+      {/* 4. Success Receipt Modal */}
       <AnimatePresence>
         {receipt && (
           <motion.div
@@ -556,25 +737,40 @@ const DTNCStore = ({ user: propUser }) => {
                     {receipt.purchase?.walletAddress || walletAddress}
                   </span>
                 </div>
-                {receipt.signature && (
+
+                {receipt.solPaymentSignature && (
                   <div className="receipt-detail-item">
-                    <span className="receipt-detail-label">Solana Transaction Signature</span>
-                    <span className="receipt-detail-value receipt-sig-value">
-                      {receipt.signature}
-                    </span>
-                  </div>
-                )}
-                {receipt.explorerUrl && (
-                  <div className="receipt-detail-item">
-                    <span className="receipt-detail-label">Blockchain Verification</span>
+                    <span className="receipt-detail-label">SOL Payment Signature</span>
                     <a
-                      href={receipt.explorerUrl}
+                      href={`https://explorer.solana.com/tx/${receipt.solPaymentSignature}?cluster=devnet`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="receipt-explorer-link"
                     >
-                      <span>View Confirmed Transaction on Solana Explorer</span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <span className="receipt-sig-value">
+                        {receipt.solPaymentSignature.slice(0, 12)}...{receipt.solPaymentSignature.slice(-8)}
+                      </span>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="7" y1="17" x2="17" y2="7" />
+                        <polyline points="7 7 17 7 17 17" />
+                      </svg>
+                    </a>
+                  </div>
+                )}
+
+                {receipt.signature && (
+                  <div className="receipt-detail-item">
+                    <span className="receipt-detail-label">DTNC Delivery Signature</span>
+                    <a
+                      href={receipt.explorerUrl || `https://explorer.solana.com/tx/${receipt.signature}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="receipt-explorer-link"
+                    >
+                      <span className="receipt-sig-value">
+                        {receipt.signature.slice(0, 12)}...{receipt.signature.slice(-8)}
+                      </span>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="7" y1="17" x2="17" y2="7" />
                         <polyline points="7 7 17 7 17 17" />
                       </svg>

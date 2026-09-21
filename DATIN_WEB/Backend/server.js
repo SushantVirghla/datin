@@ -622,6 +622,7 @@ app.post('/purchase-dtnc', authenticateToken, async (req, res) => {
         walletAddress: walletTrimmed,
         amount: parseInt(amount),
         price: parseFloat(price),
+        solPaymentSignature: req.body.solPaymentSignature || null,
         transactionSignature: result.signature,
         explorerUrl: result.explorer_url,
         createdAt: new Date().toISOString()
@@ -635,7 +636,8 @@ app.post('/purchase-dtnc', authenticateToken, async (req, res) => {
         message: 'DTNC tokens transferred successfully',
         purchase,
         signature: result.signature,
-        explorerUrl: result.explorer_url
+        explorerUrl: result.explorer_url,
+        solPaymentSignature: req.body.solPaymentSignature || null
       });
     } else {
       console.error('   ❌ Transfer failed:', result.error);

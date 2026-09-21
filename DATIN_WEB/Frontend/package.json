@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.99.0",
     "@splinetool/react-spline": "^4.0.0",
     "@splinetool/runtime": "^1.9.0",
     "axios": "^1.8.4",
