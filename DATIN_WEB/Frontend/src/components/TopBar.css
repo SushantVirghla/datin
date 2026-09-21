@@ -23,6 +23,65 @@
   transform: translateZ(0);
 }
 
+.topbar-right-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  pointer-events: auto;
+}
+
+.topbar-mode-toggle {
+  pointer-events: auto;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.95rem;
+  height: 44px;
+  border-radius: 999px;
+  font-family: var(--font-main);
+  font-size: 0.82rem;
+  font-weight: 600;
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
+  transition: all 0.25s var(--ios-spring);
+  will-change: transform;
+}
+
+.topbar-mode-toggle.mode-3d {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  color: #007aff;
+  box-shadow:
+    0 8px 24px rgba(0, 122, 255, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.topbar-mode-toggle.mode-perf {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(52, 199, 89, 0.35);
+  color: #198038;
+  box-shadow:
+    0 8px 24px rgba(52, 199, 89, 0.14),
+    0 2px 6px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.topbar-mode-toggle:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.mode-toggle-icon {
+  font-size: 0.92rem;
+}
+
+.mode-toggle-text {
+  letter-spacing: -0.01em;
+}
+
 /* Enhanced Prominent Glass Shadow for Navbar Toggle */
 .topbar-hamburger {
   width: 48px;

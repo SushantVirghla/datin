@@ -82,7 +82,7 @@ const SUPPORTED_WALLETS = [
   },
 ];
 
-const DTNCStore = ({ user: propUser }) => {
+const DTNCStore = ({ user: propUser, is3DMode = true }) => {
   const [selectedTier, setSelectedTier] = useState(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [loading, setLoading] = useState(false);
@@ -380,8 +380,8 @@ const DTNCStore = ({ user: propUser }) => {
 
   return (
     <div className="store-page-root">
-      {/* 1. Fullscreen interactive R4X Spline 3D Scene */}
-      <R4XScene watermark="DTNC" />
+      {/* 1. Fullscreen interactive R4X Spline 3D Scene / Cybernetic Core */}
+      <R4XScene watermark="DTNC" is3DMode={is3DMode} />
 
       {/* 2. Floating Bottom Dock Container (Middle Bar + Checkout + Tiers) */}
       <div className="store-dock-wrapper">

@@ -1,55 +1,32 @@
 import React, { useState, Suspense } from 'react';
 import Spline from '@splinetool/react-spline';
 import { SPLINE_SCENE_URL } from '../api/config';
+import CyberneticCore from './CyberneticCore';
 
-const SplineScene = () => {
+const SplineScene = ({ is3DMode = true }) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Continuous DOM watermark purge
-  React.useEffect(() => {
-    const purgeDomWatermarks = () => {
-      const selectors = ['#spline', '#spline-watermark', '#logo', 'a[href*="spline.design"]', 'a[href*="spline"]', '.spline-watermark'];
-      selectors.forEach((sel) => {
-        document.querySelectorAll(sel).forEach((el) => {
-          try { el.remove(); } catch (_) { el.style.display = 'none'; }
-        });
-      });
-      document.querySelectorAll('spline-viewer').forEach((viewer) => {
-        if (viewer.shadowRoot) {
-          const wm = viewer.shadowRoot.querySelector('#logo') ||
-                     viewer.shadowRoot.querySelector('a[href*="spline"]') ||
-                     viewer.shadowRoot.querySelector('#spline') ||
-                     viewer.shadowRoot.querySelector('.watermark');
-          if (wm) {
-            try { wm.remove(); } catch (_) { wm.style.display = 'none'; }
-          }
-        }
-      });
-    };
-
-    purgeDomWatermarks();
-    const interval = setInterval(purgeDomWatermarks, 250);
-    const timeout = setTimeout(() => clearInterval(interval), 8000);
-
-    const observer = new MutationObserver(purgeDomWatermarks);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
-      observer.disconnect();
-    };
-  }, []);
+  // If Speed / Performance mode is active, render the lightweight 60–144 FPS Cybernetic Core
+  if (!is3DMode) {
+    return <CyberneticCore variant="robot" watermark="NABOT" />;
+  }
 
   const handleSplineLoad = (splineApp) => {
     try {
-      // 1. Completely disable the internal WebGL Spline watermark logo overlay pass
+      // 1. Cap pixel ratio on Retina displays to eliminate 4K GPU fillrate lag
+      if (splineApp?._renderer?.renderer) {
+        const threeRenderer = splineApp._renderer.renderer;
+        if (typeof threeRenderer.setPixelRatio === 'function') {
+          threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+        }
+      }
+
+      // 2. Completely disable the internal WebGL Spline watermark logo overlay pass
       if (splineApp?._renderer?.pipeline) {
         const pipeline = splineApp._renderer.pipeline;
         if (pipeline.logoOverlayPass) {
           pipeline.logoOverlayPass.enabled = false;
         }
-        // Intercept setWatermark so Spline can never re-enable the watermark
         pipeline.setWatermark = function () {
           if (this.logoOverlayPass) {
             this.logoOverlayPass.enabled = false;

@@ -91,7 +91,22 @@ const App = () => {
   }, [loadChatHistory]);
 
   const location = useLocation();
-  const isSplineBotRoute = location.pathname === '/' || location.pathname === '/chat';
+  // Only mount the 3D robot on the Landing Page — /chat uses a dedicated, ultra-fast ambient environment
+  const isSplineBotRoute = location.pathname === '/';
+
+  // Global 3D vs. Speed Mode toggle with persistent localStorage preference
+  const [is3DMode, setIs3DMode] = useState(() => {
+    const saved = localStorage.getItem('datin_3d_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const handleToggleGraphics = useCallback(() => {
+    setIs3DMode((prev) => {
+      const next = !prev;
+      localStorage.setItem('datin_3d_mode', String(next));
+      return next;
+    });
+  }, []);
 
   const handleRequireAuth = useCallback(() => {
     setAuthModalOpen(true);
@@ -105,13 +120,15 @@ const App = () => {
         <div className="ambient-orb ambient-orb-3" />
       </div>
 
-      {/* Persistent 3D Spline Robot across Landing Page and Chat Page */}
-      {isSplineBotRoute && <SplineScene />}
+      {/* 3D Spline Robot or Ultra-Fast Cybernetic Core on Landing Page */}
+      {isSplineBotRoute && <SplineScene is3DMode={is3DMode} />}
 
       <TopBar
         onMenuToggle={handleMenuToggle}
         user={user}
         onProfileClick={handleProfileClick}
+        is3DMode={is3DMode}
+        onToggleGraphics={handleToggleGraphics}
       />
       <Sidebar
         isOpen={sidebarOpen}
@@ -140,7 +157,7 @@ const App = () => {
         } />
         <Route path="/store" element={
           <ProtectedRoute user={user} onRequireAuth={handleRequireAuth}>
-            <DTNCStore user={user} />
+            <DTNCStore user={user} is3DMode={is3DMode} />
           </ProtectedRoute>
         } />
         <Route path="/dev" element={<DevPage />} />
